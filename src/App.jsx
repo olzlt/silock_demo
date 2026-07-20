@@ -52,6 +52,7 @@ function smoothstep(edge0, edge1, x) {
 function getPointID(row, col, gridH) {
   return col * gridH + row;
 }
+const SCROLL_KEYS = new Set([" ", "Spacebar", "ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End"]);
 function interpolateKeyframes(progress, keyframes) {
   if (progress <= keyframes[0][0]) return keyframes[0][1];
   for (let i = 0; i < keyframes.length - 1; i++) {
@@ -172,6 +173,11 @@ const CLOTH_WORDS = CLOTH_LINES.join(" ").trim().split(/\s+/);
 
 // ============================================================
 // 물리 클래스 (STEP1~2 커튼용, 그대로 재사용)
+//
+// Verlet 기반 천(cloth)/줄 물리 시뮬레이션 기법은 Liam Egan의 공개 구현
+// (CodePen: https://codepen.io/shubniggurath/pen/ZYpjorm, MIT License)을
+// 참고해 재구성했으며, homeX/homeY, restoreStrength, spreadDir 등은
+// 이 프로젝트에서 추가한 독자 로직입니다.
 // ============================================================
 class Vec2 {
   constructor(x = 0, y = 0) {
@@ -241,7 +247,7 @@ class Constraint {
     const dy = this.p2.pos.y - this.p1.pos.y;
     const distance = Math.hypot(dx, dy);
     if (distance === 0) return;
-    let target = this.length;
+    let target;
     if (distance < this.minLength) target = this.minLength;
     else if (distance > this.maxLength) target = this.maxLength;
     else return;
@@ -325,7 +331,6 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
   // 그 전(꺼진 화면~퀘스트~부팅) 구간의 스크롤만 막으면 된다.
   const comparisonReady = bootDone;
 
-  const SCROLL_KEYS = new Set([" ", "Spacebar", "ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End"]);
   const inLibraryPhase = showQuest || booting || bootDone;
   const scrollLocked = inLibraryPhase && !bootDone;
   useEffect(() => {
@@ -360,16 +365,16 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
   // (트랙패드를 세게 튕기는 경우 등) 들어오면 그 지점이 이미 1 - COMPARISON_RANGE를
   // 넘어설 수 있다 — 그러면 아무리 더 스크롤해도 100%에 닿지 못한다. baseline이
   // 남은 구간(COMPARISON_RANGE)을 다 쓸 수 있는 지점을 넘지 않도록 위쪽을 잘라 둔다.
-  const comparisonBaselineRef = useRef(null);
+  const [comparisonBaseline, setComparisonBaseline] = useState(null);
   if (!bootDone) {
-    comparisonBaselineRef.current = null;
-  } else if (comparisonReady && comparisonBaselineRef.current === null) {
-    comparisonBaselineRef.current = Math.min(libraryProgress, 1 - COMPARISON_RANGE);
+    if (comparisonBaseline !== null) setComparisonBaseline(null);
+  } else if (comparisonReady && comparisonBaseline === null) {
+    setComparisonBaseline(Math.min(libraryProgress, 1 - COMPARISON_RANGE));
   }
   const comparisonProgress =
-    comparisonBaselineRef.current === null
+    comparisonBaseline === null
       ? 0
-      : clamp01((libraryProgress - comparisonBaselineRef.current) / COMPARISON_RANGE);
+      : clamp01((libraryProgress - comparisonBaseline) / COMPARISON_RANGE);
   // 가득 찬 서재 전환이 90%에 도달하면 가치 문구와 CTA를 한 번에 노출한다.
   // 서로 다른 libraryProgress 구간을 쓰지 않고 실제 비교 전환률을 단일 기준으로
   // 삼아, 완성 화면에서 여러 스텝으로 나뉘어 보이지 않게 한다.
@@ -516,7 +521,11 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
     canvas.height = height;
     canvas.style.width = "100%";
     canvas.style.height = "100%";
-    canvas.style.touchAction = "none";
+    // 터치 드래그로 글자를 잡는 기능은 의도적으로 비활성화되어 있으므로(아래
+    // onPointerDown 참고) 이 캔버스가 세로 스크롤 제스처까지 가로챌 필요는 없다.
+    // "none"으로 두면 실제 터치 기기에서 캔버스 위를 문질러도 네이티브 스크롤이
+    // 아예 발생하지 않아 페이지가 내려가지 않는다.
+    canvas.style.touchAction = "pan-y";
     canvas.style.display = "block";
     host.innerHTML = "";
     host.appendChild(canvas);
@@ -2054,17 +2063,25 @@ function SurveyModal({ open, onClose, onComplete, returnFocusRef }) {
   const containerRef = useRef(null);
   const formLoadCountRef = useRef(0);
   const [formStatus, setFormStatus] = useState("loading"); // loading | loaded | error
-  const [errorTimer, setErrorTimer] = useState(null);
+  const errorTimerRef = useRef(null);
+
+  // open이 true로 바뀌는 렌더에서 곧바로 "loading"으로 되돌린다 — 이 컴포넌트는
+  // 항상 마운트되어 있고 open prop만 바뀌므로, 이전 제출 결과(loaded/error)가
+  // 다음에 열 때도 남아있지 않도록 렌더 중에 상태를 맞춘다
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
+    if (open) setFormStatus("loading");
+  }
 
   useEffect(() => {
     if (!open) return;
     formLoadCountRef.current = 0;
-    setFormStatus("loading");
     // Google Form은 onError가 잘 안 잡히는 경우가 있어, 일정 시간 내 onLoad가 없으면 폴백 노출
     const t = setTimeout(() => {
       setFormStatus((s) => (s === "loading" ? "error" : s));
     }, 6000);
-    setErrorTimer(t);
+    errorTimerRef.current = t;
     return () => clearTimeout(t);
   }, [open]);
 
@@ -2098,9 +2115,10 @@ function SurveyModal({ open, onClose, onComplete, returnFocusRef }) {
       }
     }
     document.addEventListener("keydown", onKeyDown);
+    const returnEl = returnFocusRef && returnFocusRef.current;
     return () => {
       document.removeEventListener("keydown", onKeyDown);
-      returnFocusRef && returnFocusRef.current && returnFocusRef.current.focus();
+      returnEl && returnEl.focus();
     };
   }, [open, onClose, returnFocusRef]);
 
@@ -2148,7 +2166,7 @@ function SurveyModal({ open, onClose, onComplete, returnFocusRef }) {
                 onLoad={() => {
                   formLoadCountRef.current += 1;
                   setFormStatus("loaded");
-                  if (errorTimer) clearTimeout(errorTimer);
+                  if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
                   // Google Form은 제출 완료 후 iframe 안에서 확인 화면으로 다시
                   // 이동한다. 첫 로드는 설문 표시, 두 번째 로드는 제출 완료로 본다.
                   if (formLoadCountRef.current > 1) onComplete();
