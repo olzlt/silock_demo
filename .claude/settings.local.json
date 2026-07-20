@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__claude-in-chrome__tabs_create_mcp",
+      "Bash(awk '{ print length, NR }' \"C:\\\\Users\\\\LeeJieun\\\\Desktop\\\\study\\\\coding_codeit\\\\landing\\\\codeset\\\\silock_demo\\\\src\\\\App.jsx\")",
+      "Bash(npx eslint *)",
+      "Bash(echo \"EXIT:$?\")",
+      "Read(//c/Users/LeeJieun/Desktop/study/coding_codeit/landing/codeset/silock_demo/**)",
+      "Bash(powershell -Command \"\\(Get-Item src/App.jsx\\).LastWriteTime\")",
+      "Bash(powershell -NoProfile -Command 'Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match '\\\\''App.jsx|silock_demo|Code\\\\.exe|Cursor|WebStorm|sublime'\\\\'' } | Select-Object ProcessId, Name, CommandLine | Format-List')",
+      "Bash(powershell -NoProfile -Command \"Get-Item 'src\\\\assets\\\\logo_main_org.png' | Select-Object Name, Length\")"
+    ]
+  }
+}
