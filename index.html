@@ -2,6 +2,15 @@
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      // 스크롤에 따라 입구 연출/부팅/전환 상태가 결정되는 페이지라, 브라우저의
+      // 기본 스크롤 복원(특히 모바일)이 새로고침 직후 중간 스크롤 위치를 되돌려
+      // 놓으면 클릭으로만 켜지는 activated/booting 같은 상태와 어긋나 화면이
+      // 깨진 것처럼 보인다. 새로고침은 항상 맨 위에서 시작하도록 강제한다.
+      if ("scrollRestoration" in history) {
+        history.scrollRestoration = "manual";
+      }
+    </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Silock에서 구매한 디지털 출판 콘텐츠를 서비스 종료 이후에도 오래 소장할 수 있도록 설계하는 오픈 마켓플레이스" />

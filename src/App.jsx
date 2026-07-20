@@ -2413,7 +2413,7 @@ function BrandStorySection() {
           <span className="silock-copy-segment">독자와 창작자를,</span>
           <br />
           <span className="silock-copy-segment">네모난 프레임은</span>{" "}
-          <span className="silock-copy-segment">각자의 서재로 이어지는 Silock을 뜻합니다</span>
+          <span className="silock-copy-segment">각자의 서재를 뜻합니다</span>
         </p>
 
         <BrandConceptMotion />
