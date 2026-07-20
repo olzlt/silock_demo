@@ -422,9 +422,18 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
   const guideBottom = CURTAIN_BOTTOM_OFFSET / 2;
 
   useEffect(() => {
+    // 모바일 브라우저는 스크롤 중 주소창이 접히고 펼쳐지면서 가로폭 변화 없이
+    // window.innerHeight만 계속 바뀐다. 이 값이 바뀔 때마다 curtainTop/logoTop/
+    // transformOrigin이 다시 계산되면, 로고가 화면 속으로 확대되는 도중에도
+    // 기준점이 계속 흔들려 로고가 점점 아래로 밀려 보인다. 실제 회전/리사이즈는
+    // 항상 가로폭이 함께 바뀌므로, 가로폭 변화가 있을 때만 반영한다.
+    let lastWidth = window.innerWidth;
     const handleResize = () => {
+      const nextWidth = window.innerWidth;
+      if (nextWidth === lastWidth) return;
+      lastWidth = nextWidth;
       setViewportHeight(window.innerHeight);
-      setViewportWidth(window.innerWidth);
+      setViewportWidth(nextWidth);
     };
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
@@ -2216,9 +2225,9 @@ const BRAND_VALUES = [
   {
     number: "02",
     title: "안심 구매",
-    description: "독자는 구매한 작품이 사라질 걱정을 덜고 마음에 드는 콘텐츠를 안심하고 소장할 수 있습니다",
+    description: "독자는 구매한 작품이 사라질 걱정을 덜고 콘텐츠를 안심하고 소장할 수 있습니다",
     descriptionSegments: [
-      ["독자는 구매한 작품이 사라질 걱정을 덜고", "마음에 드는 콘텐츠를", "안심하고 소장할 수 있습니다"],
+      ["독자는 구매한 작품이 사라질 걱정을 덜고", "콘텐츠를 안심하고 소장할 수 있습니다"],
     ],
   },
   {
