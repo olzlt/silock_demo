@@ -23,12 +23,12 @@
 - `survey_open`: 참여하기 버튼으로 설문 열기
 - `survey_complete`: Google Form 제출 완료 화면 전환 감지
 
-Google Form의 로그인 기반 `응답 1개로 제한`은 사용하지 않습니다. 제출 후 iframe이 완료 화면으로 다시 로드되면 `silock_survey_completed=true`를 LocalStorage에 저장하고, 같은 브라우저로 다시 방문할 때 `이미 참여하셨습니다` 화면을 표시합니다.
+Google Form의 로그인 기반 `응답 1개로 제한`은 사용하지 않습니다. 설문을 연 뒤 충분한 시간이 지나고 iframe이 완료 화면으로 다시 로드되면(실제 제출) `silock_survey_completed_v2=true`를 LocalStorage에 저장하고, 같은 브라우저로 다시 방문할 때 `이미 참여하셨습니다` 화면을 표시합니다. 최초 표시 과정의 리다이렉트/재렌더로 인한 조기 재로드는 완료로 처리하지 않습니다.
 
 테스트 상태를 초기화하려면 브라우저 개발자 도구 Console에서 아래 코드를 실행한 뒤 새로고침합니다.
 
 ```js
-localStorage.removeItem("silock_survey_completed")
+localStorage.removeItem("silock_survey_completed_v2")
 ```
 
 Google Sheets를 방문 로그 저장소로 직접 사용하지 않습니다. 표가 필요하면 GA4 보고서에서 CSV로 내보내거나, 추후 Google Analytics Data API로 Sheets 보고서를 자동화하는 방식이 안전합니다.

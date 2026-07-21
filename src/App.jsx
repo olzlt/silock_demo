@@ -2039,8 +2039,17 @@ const LIBRARY_KF = {
 // ============================================================
 // 실제 프로젝트에서는 임베드 가능한 Google Form 링크로 교체하세요.
 // (Google Form은 "응답 수집" 켠 상태에서 우측 상단 "보내기" → <> 아이콘 → embed src 사용)
-const GOOGLE_FORM_URL = "https://forms.gle/bWd1c8Cbaem1n9Ue8";
-const SURVEY_COMPLETED_STORAGE_KEY = "silock_survey_completed";
+const GOOGLE_FORM_URL = "https://forms.gle/sosezTVEbgmTi3WF6";
+// 이전 버전은 iframe 로드 2회만으로 완료를 판정해, 설문을 열기만 해도 완료로
+// 오인된 방문자가 있었다. 그 브라우저들에는 구 키(silock_survey_completed)가
+// true로 잘못 남아 있으므로, 키 이름을 새로 부여해 과거의 잘못된 값 전체를
+// 무시(=리셋)한다. 완료 판정 로직도 아래에서 체류 시간 조건을 추가해 강화한다.
+const SURVEY_COMPLETED_STORAGE_KEY = "silock_survey_completed_v2";
+// 제출 완료(iframe이 확인 화면으로 재로드)로 인정하기 위한 최소 체류 시간(ms).
+// Google Form은 최초 표시 과정에서 리다이렉트/재렌더로 onLoad를 여러 번(대개
+// 몇 초 이내) 발생시키므로, 이 시간이 지나기 전의 재로드는 실제 제출이 아니라
+// 초기 로딩으로 보고 완료 처리하지 않는다.
+const SURVEY_MIN_SUBMIT_MS = 15000;
 
 function readSurveyCompleted() {
   if (typeof window === "undefined") return false;
@@ -2102,6 +2111,7 @@ function FormFallback({ formUrl }) {
 function SurveyModal({ open, onClose, onComplete, returnFocusRef }) {
   const containerRef = useRef(null);
   const formLoadCountRef = useRef(0);
+  const formOpenedAtRef = useRef(0);
   const [formStatus, setFormStatus] = useState("loading"); // loading | loaded | error
   const errorTimerRef = useRef(null);
 
@@ -2117,6 +2127,7 @@ function SurveyModal({ open, onClose, onComplete, returnFocusRef }) {
   useEffect(() => {
     if (!open) return;
     formLoadCountRef.current = 0;
+    formOpenedAtRef.current = Date.now();
     // Google Form은 onError가 잘 안 잡히는 경우가 있어, 일정 시간 내 onLoad가 없으면 폴백 노출
     const t = setTimeout(() => {
       setFormStatus((s) => (s === "loading" ? "error" : s));
@@ -2208,8 +2219,14 @@ function SurveyModal({ open, onClose, onComplete, returnFocusRef }) {
                   setFormStatus("loaded");
                   if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
                   // Google Form은 제출 완료 후 iframe 안에서 확인 화면으로 다시
-                  // 이동한다. 첫 로드는 설문 표시, 두 번째 로드는 제출 완료로 본다.
-                  if (formLoadCountRef.current > 1) onComplete();
+                  // 이동한다. 다만 최초 표시 과정에서도 리다이렉트/재렌더로 onLoad가
+                  // 여러 번 발생하므로(대개 몇 초 이내), "두 번째 이후 로드"만으로
+                  // 완료를 판정하면 설문을 열기만 해도 완료로 오인된다. 충분한 체류
+                  // 시간이 지난 뒤의 재로드만 실제 제출로 간주한다.
+                  const dwell = Date.now() - formOpenedAtRef.current;
+                  if (formLoadCountRef.current > 1 && dwell > SURVEY_MIN_SUBMIT_MS) {
+                    onComplete();
+                  }
                 }}
                 onError={() => setFormStatus("error")}
               />
@@ -2295,7 +2312,7 @@ const FAQ_ITEMS = [
     answer: "웹툰, 웹소설, 전자책 등 글이나 그림으로 이루어진 디지털 창작물을 지원합니다",
     answerSegments: [
       ["웹툰, 웹소설, 전자책 등"],
-      ["글이나 그림으로 이루어진", "디지털 창작물을 지원합니다"],
+      ["글이나 그림으로 이루어진 디지털 창작물을 지원합니다"],
     ],
   },
   {
