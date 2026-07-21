@@ -1077,7 +1077,13 @@ const eStyles = {
     left: "50%",
     width: `min(${ROOF_WIDTH}px, 100vw)`,
     height: "auto",
+    // 지붕을 자체 합성(compositor) 레이어로 승격시킨다(will-change: transform).
+    // 부모가 scale(1~7)로 확대·축소될 때 지붕 내용을 매 프레임 다시 래스터화하지
+    // 않고, 한 번 만든 텍스처를 GPU가 변형만 하도록 해서, 위로 스크롤해 되돌아올
+    // 때 지붕 일부가 잠깐 안 그려지는(다시 그리기 지연) 현상을 줄인다.
     transform: "translateX(-50%)",
+    willChange: "transform",
+    backfaceVisibility: "hidden",
     objectFit: "contain",
   },
 
