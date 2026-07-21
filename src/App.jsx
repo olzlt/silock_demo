@@ -893,10 +893,18 @@ return (
         ref={journeyWrapRef}
         style={{
           position: "relative",
-          height: activated ? `calc(${viewportHeight}px + ${TOTAL_SCROLL_VH}vh)` : viewportHeight,
+          // 100vh/innerHeight 기반 px 값 대신 100dvh(동적 뷰포트 높이)를 쓴다 —
+          // 모바일에서 스크롤 중 주소창이 접히고 펼쳐지며 실제 보이는 화면 높이가
+          // 바뀌는데, JS state(viewportHeight)는 (로고 확대 기준점이 흔들리지 않도록)
+          // 매번 갱신하지 않으므로 실제 화면보다 낮은 값에 머무를 수 있다. 그러면
+          // 이 래퍼/고정(sticky) 영역이 실제 화면보다 짧게 렌더링되어 그 아래로
+          // 흰 배경이 드러나고, 주소창 상태에 따라 스크롤 방향별로 보였다 사라졌다
+          // 한다. 100dvh는 브라우저가 항상 "현재 실제로 보이는 높이"에 맞춰주므로
+          // 이 간격이 생기지 않는다.
+          height: activated ? `calc(100dvh + ${TOTAL_SCROLL_VH}vh)` : "100dvh",
         }}
       >
-        <div style={{ position: "sticky", top: 0, height: viewportHeight, overflow: "hidden" }}>
+        <div style={{ position: "sticky", top: 0, height: "100dvh", overflow: "hidden" }}>
           {/* 지붕 + 커튼 + 로고/버튼: 스크롤이 진행될수록 확대·소멸하며
              "버튼 속으로 들어가는" 느낌의 카메라 전진 효과를 만든다 */}
           <div
