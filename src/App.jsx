@@ -422,21 +422,27 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
   const guideBottom = CURTAIN_BOTTOM_OFFSET / 2;
 
   useEffect(() => {
-    // 모바일 브라우저는 스크롤 중 주소창이 접히고 펼쳐지면서 가로폭 변화 없이
-    // window.innerHeight만 계속 바뀐다. 이 값이 바뀔 때마다 curtainTop/logoTop/
-    // transformOrigin이 다시 계산되면, 로고가 화면 속으로 확대되는 도중에도
-    // 기준점이 계속 흔들려 로고가 점점 아래로 밀려 보인다. 실제 회전/리사이즈는
-    // 항상 가로폭이 함께 바뀌므로, 가로폭 변화가 있을 때만 반영한다.
-    let lastWidth = window.innerWidth;
-    const handleResize = () => {
-      const nextWidth = window.innerWidth;
-      if (nextWidth === lastWidth) return;
-      lastWidth = nextWidth;
+    // 고정(sticky) 컨테이너는 100dvh로 렌더링되어, 모바일에서 주소창이 접히고
+    // 펼쳐질 때마다 실제 화면 높이가 즉시 바뀐다. viewportHeight(JS 상태)가 이
+    // 실제 높이를 그대로 따라가지 못하면(예: window resize 이벤트만 믿고 가로폭이
+    // 바뀔 때만 갱신하면), 로고/이북 리더기 위치 계산에 쓰이는 값이 실제 dvh보다
+    // 작은 채로 고정되어 화면 위쪽에 몰려 보인다 — 스크롤을 해야 resize 이벤트가
+    // 뒤늦게 발생해 그제서야 값이 맞아 들어간다. window의 resize 이벤트는 주소창
+    // 토글에 즉시/일관되게 반응하지 않으므로, 실제 렌더링된 문서 높이를
+    // ResizeObserver로 직접 관찰해 바로바로 따라가게 한다.
+    const target = document.documentElement;
+    const update = () => {
       setViewportHeight(window.innerHeight);
-      setViewportWidth(nextWidth);
+      setViewportWidth(window.innerWidth);
     };
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(target);
+    window.addEventListener("resize", update);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", update);
+    };
   }, []);
 
   useLayoutEffect(() => {
@@ -2524,12 +2530,12 @@ function FinalSurveySection({ onSurveyOpen }) {
           <p style={storyStyles.surveyNote}>설문 참여 후 오픈 알림을 신청할 수 있습니다</p>
         </div>
       </div>
-      <footer style={storyStyles.footer}>
-        <span>SILOCK</span>
-        <span>
+      <footer className="silock-final-footer" style={storyStyles.footer}>
+        <span className="silock-final-footer-brand">SILOCK</span>
+        <span className="silock-final-footer-note">
           <span className="silock-copy-segment">온라인도 오프라인처럼 안심하고 소장하세요</span>
         </span>
-        <a href="mailto:silockload@gmail.com" style={storyStyles.footerEmail}>silockload@gmail.com</a>
+        <a href="mailto:silockload@gmail.com" className="silock-final-footer-email" style={storyStyles.footerEmail}>silockload@gmail.com</a>
       </footer>
     </section>
   );
@@ -2567,7 +2573,7 @@ const storyStyles = {
   faqList: { borderTop: `1px solid ${COLOR.neutralGray}` },
   surveyInner: { textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center" },
   surveyNote: { margin: "clamp(22px, 2.4vw, 34px) 0 0", color: "rgba(255,255,255,0.58)", fontSize: "clamp(14px, 1.25vw, 17px)", lineHeight: 1.5 },
-  footer: { width: "min(1160px, calc(100% - 48px))", margin: "80px auto 0", padding: "24px 0", borderTop: "1px solid rgba(255,255,255,0.14)", color: "rgba(255,255,255,0.48)", display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 24, fontSize: 12 },
+  footer: { width: "min(1160px, calc(100% - 48px))", margin: "80px auto 0", padding: "24px 0", borderTop: "1px solid rgba(255,255,255,0.14)", color: "rgba(255,255,255,0.48)", display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: "8px 16px", fontSize: "clamp(10px, 2.6vw, 12px)" },
   footerEmail: { color: "inherit", textDecoration: "none" },
 };
 
@@ -3365,6 +3371,17 @@ export default function SilockLibraryDemo() {
         .silock-library-bg { background-position: center; }
         @media (max-width: 640px) {
           .silock-library-bg { background-size: 180% 180%; background-position: center 30%; }
+        }
+        /* 마지막 설문 섹션 하단 푸터 — 좁은 화면에서는 한 줄에 브랜드명/멘트/이메일이
+           다 들어가지 못해 justify-content: space-between + flex-wrap만으로는
+           애매하게 줄바꿈된다. 멘트를 첫 줄에 단독으로, 브랜드명·이메일을 두 번째
+           줄에 나란히 두도록 명시적으로 순서를 고정한다. */
+        @media (max-width: 480px) {
+          .silock-final-footer-note {
+            order: -1;
+            flex: 1 1 100%;
+            text-align: center;
+          }
         }
         @media (prefers-reduced-motion: reduce) {
           * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
