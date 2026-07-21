@@ -443,9 +443,15 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
       if (!roofRef.current) return;
 
       const update = () => {
-          const rect = roofRef.current.getBoundingClientRect();
-          setRoofHeight(rect.height);
-          setRoofWidth(rect.width);
+          // getBoundingClientRect()는 조상에 걸린 transform: scale(gateScale)의
+          // 영향을 그대로 받는다 — 스크롤로 확대(1~7배)되는 도중에 리사이즈/옵저버
+          // 콜백이 실행되면 이미 확대된 화면 좌표를 지붕 실제 크기로 잘못 저장하게
+          // 되고, 그 값을 기준으로 계산되는 커튼 위치/크기·로고 위치가 전부 어긋나
+          // 화면 밖으로 밀려난다(지붕 자체는 이 값에 의존하지 않아 멀쩡해 보인다).
+          // offsetWidth/offsetHeight는 transform의 영향을 받지 않는 실제 레이아웃
+          // 크기이므로 이 문제가 없다.
+          setRoofHeight(roofRef.current.offsetHeight);
+          setRoofWidth(roofRef.current.offsetWidth);
       };
 
       update();
