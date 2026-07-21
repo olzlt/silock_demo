@@ -535,9 +535,14 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
     const topInset = fontSize * 0.6; // 상단 여백 (글자 절반 정도)
     const cellHeight = (height - topInset) / (CONFIG.gridH - 1);
 
+    // 고해상도(레티나/모바일) 화면에서 커튼 글자가 뿌옇게/깨져 보이지 않도록,
+    // 캔버스 백킹 스토어와 글자 비트맵을 devicePixelRatio 배율로 렌더링한다.
+    // (성능을 위해 2배로 상한.) 그리는 좌표계는 그대로 CSS 픽셀을 쓰되, 매 글자
+    // 변환과 글자 비트맵에만 dpr을 반영한다.
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
     const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
     canvas.style.width = "100%";
     canvas.style.height = "100%";
     // 터치 드래그로 글자를 잡는 기능은 의도적으로 비활성화되어 있으므로(아래
@@ -624,14 +629,17 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
       charCanvases = {};
       for (const ch of new Set(FULL_TEXT)) {
         if (ch === " " || ch === "　") continue;
+        const cssSize = Math.ceil(fontSize * 1.5);
         const off = document.createElement("canvas");
-        off.width = off.height = Math.ceil(fontSize * 1.5);
+        off.width = off.height = Math.ceil(cssSize * dpr);
+        off._css = cssSize; // 실제로 그릴 때 쓰는 CSS 크기(비트맵 자체는 dpr배 크다)
         const octx = off.getContext("2d");
+        octx.scale(dpr, dpr);
         octx.font = `500 ${fontSize}px "Noto Serif KR", serif`;
         octx.textAlign = "center";
         octx.textBaseline = "middle";
         octx.fillStyle = "#3a3a3a";
-        octx.fillText(ch, off.width / 2, off.height / 2);
+        octx.fillText(ch, cssSize / 2, cssSize / 2);
         charCanvases[ch] = off;
       }
     }
@@ -645,8 +653,10 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
 
     let grabbed = null;
     function toLocal(e) {
+      // 파티클 좌표는 CSS 픽셀이므로, 백킹 스토어(dpr배)가 아니라 논리 크기
+      // (width/height)를 기준으로 매핑한다.
       const rect = canvas.getBoundingClientRect();
-      return new Vec2((e.clientX - rect.left) * (canvas.width / rect.width), (e.clientY - rect.top) * (canvas.height / rect.height));
+      return new Vec2((e.clientX - rect.left) * (width / rect.width), (e.clientY - rect.top) * (height / rect.height));
     }
     function onPointerDown(e) {
       const p = toLocal(e);
@@ -657,8 +667,8 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
         const logoRect = logoElement.getBoundingClientRect();
         const canvasRect = canvas.getBoundingClientRect();
 
-        const scaleX = canvas.width / canvasRect.width;
-        const scaleY = canvas.height / canvasRect.height;
+        const scaleX = width / canvasRect.width;
+        const scaleY = height / canvasRect.height;
 
         const logoLeft =
           (logoRect.left - canvasRect.left) * scaleX;
@@ -754,6 +764,7 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
     };
 
     function draw() {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       for (const p of particles) {
         if (!p.char || p.char === " " || p.char === "　") continue;
@@ -767,12 +778,14 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
         }
         const cos = Math.cos(angle);
         const sin = Math.sin(angle);
-        const half = img.width / 2;
-        ctx.setTransform(cos, sin, -sin, cos, p.pos.x, p.pos.y);
-        ctx.drawImage(img, -half, -half);
+        const cssSize = img._css;
+        const half = cssSize / 2;
+        // 회전·이동은 CSS 좌표 그대로 두되, 백킹 스토어가 dpr배이므로 변환 행렬에
+        // dpr을 곱하고, 비트맵은 CSS 크기(cssSize)로 그려 넣어 선명하게 렌더링한다.
+        ctx.setTransform(cos * dpr, sin * dpr, -sin * dpr, cos * dpr, p.pos.x * dpr, p.pos.y * dpr);
+        ctx.drawImage(img, -half, -half, cssSize, cssSize);
       }
       ctx.setTransform(1, 0, 0, 1, 0, 0);
-
     }
     const bottomRowParticles = [];
     for (let i = 0; i < CONFIG.gridW; i++) {
