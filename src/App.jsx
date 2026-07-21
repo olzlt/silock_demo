@@ -1,7 +1,7 @@
-import roofImg from "./assets/roof.png";
-import entranceLogoImg from "./assets/logo_main_org.png";
-import blackLogoImg from "./assets/logo_main_black.png";
-import libraryBGImg from "./assets/library.png"
+import roofImg from "./assets/roof.webp";
+import entranceLogoImg from "./assets/logo_main_org.webp";
+import blackLogoImg from "./assets/logo_main_black.webp";
+import libraryBGImg from "./assets/library.webp"
 import { trackEvent } from "./analytics.js";
 
 import {

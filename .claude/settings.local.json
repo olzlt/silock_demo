@@ -14,7 +14,18 @@
       "Bash(git check-ignore *)",
       "Bash(jobs -l)",
       "Bash(kill %1)",
-      "Bash(grep -n \"Silock에서</span>{\\\\\" \\\\\"}\\\\|구매한 콘텐츠,</span>\" \"C:/Users/LeeJieun/Desktop/study/coding_codeit/landing/codeset/silock_demo/src/App.jsx\")"
+      "Bash(grep -n \"Silock에서</span>{\\\\\" \\\\\"}\\\\|구매한 콘텐츠,</span>\" \"C:/Users/LeeJieun/Desktop/study/coding_codeit/landing/codeset/silock_demo/src/App.jsx\")",
+      "Bash(file \"C:/Users/LeeJieun/Desktop/study/coding_codeit/landing/codeset/silock_demo/src/assets/\"*.png)",
+      "Bash(node -e \"console.log\\(require\\('sharp'\\)\\)\")",
+      "Bash(convert --version)",
+      "Bash(magick --version)",
+      "Bash(where magick *)",
+      "Bash(npm --version)",
+      "Bash(python -c \"import PIL; print\\(PIL.__version__\\)\")",
+      "Bash(mkdir -p \"C:/Users/LeeJieun/AppData/Local/Temp/claude/C--Users-LeeJieun-Desktop-study-coding-codeit-landing-codeset-silock-demo/d67fe664-f625-4d20-ac3e-c3427ee3400f/scratchpad/imgtool\")",
+      "Bash(npm init *)",
+      "Bash(npm install *)",
+      "Bash(node optimize.js)"
     ]
   }
 }
