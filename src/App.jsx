@@ -371,10 +371,16 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
   } else if (comparisonReady && comparisonBaseline === null) {
     setComparisonBaseline(Math.min(libraryProgress, 1 - COMPARISON_RANGE));
   }
+  // 비교(서재 채우기)는 남은 스크롤 전체(baseline~1.0)에 걸쳐 진행되도록 해서,
+  // 채우기 완료 = journeyProgress 1.0 = 고정(sticky) 해제 = 다음 섹션 등장이
+  // 정확히 같은 지점에서 일어나게 한다. 예전처럼 고정 폭(COMPARISON_RANGE)만 쓰면
+  // 서재가 다 찬 뒤에도 journeyProgress가 1.0에 닿을 때까지 아무 변화 없이 한참
+  // 더 스크롤해야 하는 "죽은 구간"이 생겨, 버튼이 뜬 뒤에도 바로 아래로 내려가지
+  // 못하고 버벅이는 느낌을 줬다.
   const comparisonProgress =
     comparisonBaseline === null
       ? 0
-      : clamp01((libraryProgress - comparisonBaseline) / COMPARISON_RANGE);
+      : clamp01((libraryProgress - comparisonBaseline) / (1 - comparisonBaseline));
   // 가득 찬 서재 전환이 90%에 도달하면 가치 문구와 CTA를 한 번에 노출한다.
   // 서로 다른 libraryProgress 구간을 쓰지 않고 실제 비교 전환률을 단일 기준으로
   // 삼아, 완성 화면에서 여러 스텝으로 나뉘어 보이지 않게 한다.
@@ -1154,7 +1160,11 @@ const eStyles = {
 // "다음 페이지로 넘어가듯" 튀지 않도록, 같은 리더기 요소가 같은 화면 안에서
 // 계속 이어져 켜지게 하기 위함이다
 const ENTRANCE_SCROLL_VH = 400;
-const LIBRARY_SCROLL_VH = 260;
+// 예전에는 이 구간의 절반가량(약 138vh)이 "서재가 다 찬 뒤 고정이 풀릴 때까지
+// 기다리는" 죽은 스크롤이었다(위 comparisonProgress 설명 참고). 이제 채우기가 이
+// 구간 전체에 걸쳐 끝나므로, 채우기 속도가 예전과 비슷하도록 값을 줄인다 — 그만큼
+// 총 스크롤량도 줄어 "한참 스크롤해야 내려가는" 문제가 사라진다.
+const LIBRARY_SCROLL_VH = 140;
 const TOTAL_SCROLL_VH = ENTRANCE_SCROLL_VH + LIBRARY_SCROLL_VH;
 const ENTRANCE_PHASE_END = ENTRANCE_SCROLL_VH / TOTAL_SCROLL_VH;
 
