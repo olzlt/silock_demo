@@ -317,21 +317,13 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
   // 페이지를 새로 시작하지 않고 여기서 부팅/비교 상태를 함께 관리한다
   const [booting, setBooting] = useState(false);
   const [bootDone, setBootDone] = useState(false);
-  // 부팅을 바로 시작하지 않고, 화면이 꺼진 리더기 앞에 "켜시겠습니까?" 퀘스트창을
-  // 먼저 띄운다 — 둘 중 어느 버튼을 눌러도(둘 다 긍정문) 같은 동작(부팅 시작)으로
-  // 이어진다
-  const [showQuest, setShowQuest] = useState(false);
   const libraryStartedRef = useRef(false);
-  const handleQuestConfirm = useCallback(() => {
-    setShowQuest(false);
-    setBooting(true);
-  }, []);
   // 화면이 켜진(bootDone) 뒤 잠깐의 유예를 두고서야 스크롤이 좌우 비교를 제어하게
   // 하던 방식은 폐기 — 화면이 켜지는 즉시 스크롤이 곧바로 좌우 비교를 제어한다.
-  // 그 전(꺼진 화면~퀘스트~부팅) 구간의 스크롤만 막으면 된다.
+  // 그 전(부팅) 구간의 스크롤만 막으면 된다.
   const comparisonReady = bootDone;
 
-  const inLibraryPhase = showQuest || booting || bootDone;
+  const inLibraryPhase = booting || bootDone;
   const scrollLocked = inLibraryPhase && !bootDone;
   useEffect(() => {
     if (!activated || !scrollLocked) return;
@@ -870,11 +862,12 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
       const rect = el.getBoundingClientRect();
       const p = clamp01(-rect.top / total);
       setJourneyProgress(p);
-      // 입구 연출이 끝나고 리더기 구간으로 넘어가는 순간(=같은 화면 안에서) 부팅을
-      // 곧장 시작하지 않고, 먼저 "화면을 켜시겠습니까?" 퀘스트창을 띄운다
+      // 입구 연출이 끝나고 리더기 구간으로 넘어가는 순간(=같은 화면 안에서)
+      // 곧바로 리더기 부팅을 시작한다. (예전에는 "화면을 켜시겠습니까?" 퀘스트창을
+      // 먼저 띄웠으나, 랜딩을 다 보는 데 시간이 더 걸린다는 피드백으로 제거했다.)
       if (!libraryStartedRef.current && p > ENTRANCE_PHASE_END) {
         libraryStartedRef.current = true;
-        setShowQuest(true);
+        setBooting(true);
       }
     }
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -1024,8 +1017,6 @@ return (
                 entranceProgress={entranceProgress}
                 booting={booting}
                 bootDone={bootDone}
-                showQuest={showQuest}
-                onQuestConfirm={handleQuestConfirm}
                 onBootComplete={() => setBootDone(true)}
                 comparisonProgress={comparisonProgress}
                 showGuide={showLibraryGuide}
@@ -1269,8 +1260,6 @@ function ReaderJourney({
   entranceProgress,
   booting,
   bootDone,
-  showQuest,
-  onQuestConfirm,
   onBootComplete,
   comparisonProgress,
   showGuide,
@@ -1406,36 +1395,6 @@ function ReaderJourney({
         top={exploreCenterY}
         fontSize={guideFontSize}
       />
-      {showQuest && (
-        // 리더기 "화면 안"이 아니라 리더기 전체를 가로지르며 그 앞에 뜨는 독립
-        // 레이어 — 진짜 게임 팝업창처럼 리더기보다 커도 되므로, 리더기의 폭/높이와
-        // 무관하게 자체적으로 더 큰 크기를 갖는다 같은 readerCenterY를 기준으로
-        // 리더기와 같은 중심에서 뜨도록 해 "리더기 앞에 떠 있다"는 인상을 준다
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            zIndex: 20,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background: "rgba(0,0,0,0.55)",
-            pointerEvents: "auto",
-            animation: "quest-fade-in 220ms ease-out",
-          }}
-        >
-          <div
-            style={{
-              position: "absolute",
-              top: readerCenterY,
-              left: "50%",
-              transform: `translate(-50%, -50%) translateY(${translateY}px)`,
-            }}
-          >
-            <ReaderQuestPrompt onConfirm={onQuestConfirm} />
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -1449,102 +1408,6 @@ function ReaderOffScreen() {
 }
 const readerOffStyles = {
   wrap: { position: "absolute", inset: 0, background: COLOR.black },
-};
-
-// ============================================================
-// 꺼진 리더기 앞에 뜨는 "화면을 켜시겠습니까?" 퀘스트창 — 게임 NPC 대화창처럼
-// 장식적인 카드에 물음과 두 개의 긍정형 버튼("네" / "YES")만 제시한다 어느
-// 버튼을 눌러도 같은 동작(부팅 시작)으로 이어진다
-// ============================================================
-// 이제 이 컴포넌트는 리더기 "화면 안"이 아니라 ReaderJourney가 리더기 전체를
-// 가로질러 띄우는 독립 레이어의 내용물이다 — 배경 딤 처리와 중앙 정렬은
-// 호출부(ReaderJourney)가 담당하고, 여기서는 카드 자체만 그린다
-function ReaderQuestPrompt({ onConfirm }) {
-  return (
-    <div style={questStyles.card}>
-      <span style={{ ...questStyles.corner, ...questStyles.cornerTL }} />
-      <span style={{ ...questStyles.corner, ...questStyles.cornerTR }} />
-      <span style={{ ...questStyles.corner, ...questStyles.cornerBL }} />
-      <span style={{ ...questStyles.corner, ...questStyles.cornerBR }} />
-
-      <div style={questStyles.iconRow}>
-        <span style={questStyles.iconLine} />
-        <div style={questStyles.diamond}>
-          <span style={questStyles.exclaim}>!</span>
-        </div>
-        <span style={questStyles.iconLine} />
-      </div>
-      <span style={questStyles.smallDiamond} />
-
-      <p style={questStyles.question}>화면을 켜시겠습니까?</p>
-
-      <div style={questStyles.buttonRow}>
-        <button type="button" className="silock-quest-choice" style={questStyles.choiceButton} onClick={onConfirm}>
-          네
-        </button>
-        <button type="button" className="silock-quest-choice" style={questStyles.choiceButton} onClick={onConfirm}>
-          YES
-        </button>
-      </div>
-    </div>
-  );
-}
-const QUEST_TAN = "#B79A72";
-const questStyles = {
-  card: {
-    position: "relative",
-    width: "min(380px, 88vw)",
-    background: "#FBF6EE",
-    border: `1px solid ${QUEST_TAN}88`,
-    borderRadius: 14,
-    padding: "30px 26px 24px",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    boxShadow: "0 24px 60px rgba(0,0,0,0.45)",
-    animation: "quest-pop-in 260ms ease-out",
-  },
-  corner: { position: "absolute", width: 14, height: 14, borderColor: QUEST_TAN, borderStyle: "solid" },
-  cornerTL: { top: 6, left: 6, borderWidth: "1.8px 0 0 1.8px" },
-  cornerTR: { top: 6, right: 6, borderWidth: "1.8px 1.8px 0 0" },
-  cornerBL: { bottom: 6, left: 6, borderWidth: "0 0 1.8px 1.8px" },
-  cornerBR: { bottom: 6, right: 6, borderWidth: "0 1.8px 1.8px 0" },
-  iconRow: { display: "flex", alignItems: "center", gap: 10, width: "100%" },
-  iconLine: { flex: 1, height: 1, background: `${QUEST_TAN}66` },
-  diamond: {
-    width: 42,
-    height: 42,
-    flexShrink: 0,
-    border: `1.8px solid ${QUEST_TAN}`,
-    background: "#FBF6EE",
-    transform: "rotate(45deg)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  exclaim: { transform: "rotate(-45deg)", color: COLOR.orange, fontWeight: 800, fontSize: 20, lineHeight: 1 },
-  smallDiamond: {
-    width: 7,
-    height: 7,
-    marginTop: 8,
-    marginBottom: 20,
-    border: `1.4px solid ${QUEST_TAN}`,
-    transform: "rotate(45deg)",
-  },
-  question: { margin: "0 0 24px", fontFamily: "'Noto Serif KR', serif", fontSize: 18, fontWeight: 700, color: COLOR.black, textAlign: "center", lineHeight: 1.45, letterSpacing: "-0.02em" },
-  buttonRow: { display: "flex", gap: 12, width: "100%" },
-  choiceButton: {
-    flex: 1,
-    padding: "14px 0",
-    borderRadius: 10,
-    fontFamily: "'Noto Serif KR', serif",
-    fontSize: 15,
-    fontWeight: 700,
-    cursor: "pointer",
-    touchAction: "manipulation",
-    WebkitTapHighlightColor: "transparent",
-    transition: "background-color 160ms ease, color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 100ms ease",
-  },
 };
 
 // ============================================================
@@ -2659,6 +2522,7 @@ function AlreadyParticipatedModal({ open, onClose }) {
           type="button"
           onClick={onClose}
           aria-label="닫기"
+          className="silock-modal-btn"
           style={participatedStyles.closeBtn}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
@@ -2672,7 +2536,7 @@ function AlreadyParticipatedModal({ open, onClose }) {
           <br />
           Silock의 시작 소식을 기다려주세요
         </p>
-        <button type="button" onClick={onClose} style={participatedStyles.homeButton} autoFocus>
+        <button type="button" onClick={onClose} className="silock-modal-btn" style={participatedStyles.homeButton} autoFocus>
           메인으로 돌아가기
         </button>
       </div>
@@ -2807,8 +2671,6 @@ export default function SilockLibraryDemo() {
         @keyframes book-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes modal-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
         @keyframes modal-pop-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
-        @keyframes quest-fade-in { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes quest-pop-in { from { opacity: 0; transform: scale(0.9) translateY(6px); } to { opacity: 1; transform: scale(1) translateY(0); } }
 
         .silock-app :is(h1, h2, h3, p, summary, button, footer span) {
           word-break: keep-all;
@@ -2825,30 +2687,14 @@ export default function SilockLibraryDemo() {
           max-width: 100%;
         }
 
-        .silock-quest-choice {
-          border: 1px solid rgba(0,0,0,0.16);
-          background: ${COLOR.white};
-          color: ${COLOR.black};
-        }
-        @media (hover: hover) and (pointer: fine) {
-          .silock-quest-choice:hover {
-            border-color: ${COLOR.orange};
-            background: ${COLOR.orange};
-            color: ${COLOR.white};
-            box-shadow: 0 8px 18px ${COLOR.orange}55;
-          }
-        }
-        .silock-quest-choice:active,
-        .silock-quest-choice:focus-visible {
-          border-color: ${COLOR.orange};
-          background: ${COLOR.orange};
-          color: ${COLOR.white};
-          box-shadow: 0 8px 18px ${COLOR.orange}55;
-          transform: scale(0.98);
+        /* 모달 버튼(메인으로 돌아가기 / 닫기)의 기본 파란색 포커스 테두리·탭
+           하이라이트를 없애고, 브랜드 톤에 맞는 주황색 포커스 링으로 대체한다. */
+        .silock-modal-btn {
           outline: none;
+          -webkit-tap-highlight-color: transparent;
         }
-        @media (pointer: coarse) {
-          .silock-quest-choice { min-height: 52px; }
+        .silock-modal-btn:focus-visible {
+          box-shadow: 0 0 0 3px ${COLOR.orange}66;
         }
 
         .silock-explore-arrow:hover { color: ${COLOR.orange} !important; }

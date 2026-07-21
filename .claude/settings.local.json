@@ -25,7 +25,8 @@
       "Bash(mkdir -p \"C:/Users/LeeJieun/AppData/Local/Temp/claude/C--Users-LeeJieun-Desktop-study-coding-codeit-landing-codeset-silock-demo/d67fe664-f625-4d20-ac3e-c3427ee3400f/scratchpad/imgtool\")",
       "Bash(npm init *)",
       "Bash(npm install *)",
-      "Bash(node optimize.js)"
+      "Bash(node optimize.js)",
+      "Bash(echo \"EXIT: $?\")"
     ]
   }
 }
