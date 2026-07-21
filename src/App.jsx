@@ -558,7 +558,6 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
 
     const particles = [];
     const constraints = [];
-    const centerCol = (CONFIG.gridW - 1) / 2;
     const columnSpreadDir = [];
     // 단어 단위 커서를 공유해 어느 화면 높이에서도 단어가 열 사이에서 갈라지지 않는다
     let wordCursor = 0;
@@ -590,8 +589,11 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
       }
 
       // 버튼(중앙) 기준 왼쪽 열은 -1, 오른쪽 열은 +1 — 같은 열의 모든 줄이
-      // 동일하게 이 방향으로 밀려나 열 전체가 평행하게(11자로) 이동한다
-      const spreadDir = i === centerCol ? 0 : i < centerCol ? -1 : 1;
+      // 동일하게 이 방향으로 밀려나 열 전체가 평행하게(11자로) 이동한다.
+      // 중앙 기준을 "열과 열 사이"(gridW/2)로 잡아, 어느 열도 정중앙에 걸려
+      // 멈추지 않게 한다 — gridW가 홀수여도 정중앙 열이 한쪽으로 함께 이동하고,
+      // 짝수일 때는 예전과 동일하게 좌우 대칭으로 갈라진다.
+      const spreadDir = i < CONFIG.gridW / 2 ? -1 : 1;
       columnSpreadDir[i] = spreadDir;
 
       for (let j = 0; j < CONFIG.gridH; j++) {
