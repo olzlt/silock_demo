@@ -23,12 +23,12 @@
 - `survey_open`: 참여하기 버튼으로 설문 열기
 - `survey_complete`: 사용자가 `제출을 완료했어요` 버튼을 눌러 완료를 확인
 
-Google Form의 로그인 기반 `응답 1개로 제한`은 사용하지 않습니다. 완료 여부는 iframe 로드를 자동 감지하지 않고(cross-origin이라 실제 제출을 코드로 알 수 없고, 설문을 열거나 폼 내부를 이동만 해도 완료로 오인됨), 사용자가 설문 모달의 `제출을 완료했어요` 버튼을 직접 눌렀을 때만 `silock_survey_completed_v2=true`를 LocalStorage에 저장합니다. 이미 저장된 브라우저에서 다시 `참여하기`를 누르면 폼 대신 `이미 참여하셨습니다` 안내 모달을 띄우며, 이 모달은 닫고 랜딩으로 돌아올 수 있습니다(전체 화면을 차단하지 않음).
+Google Form의 로그인 기반 `응답 1개로 제한`은 사용하지 않습니다. 완료 여부는 iframe 로드를 자동 감지하지 않고(cross-origin이라 실제 제출을 코드로 알 수 없고, 설문을 열거나 폼 내부를 이동만 해도 완료로 오인됨), 사용자가 설문 모달의 `제출을 완료했어요` 버튼을 직접 눌렀을 때만 `silock_survey_completed_v3=true`를 LocalStorage에 저장합니다. 이미 저장된 브라우저에서 다시 `참여하기`를 누르면 폼 대신 `이미 참여하셨습니다` 안내 모달을 띄우며, 이 모달은 닫고 랜딩으로 돌아올 수 있습니다(전체 화면을 차단하지 않음). 과거 자동 감지 버전이 잘못 저장한 완료 플래그(`silock_survey_completed`, `silock_survey_completed_v2`)는 키가 `_v3`로 바뀌면서 무시되므로 재배포 후 자동으로 리셋됩니다.
 
 테스트 상태를 초기화하려면 브라우저 개발자 도구 Console에서 아래 코드를 실행한 뒤 새로고침합니다.
 
 ```js
-localStorage.removeItem("silock_survey_completed_v2")
+localStorage.removeItem("silock_survey_completed_v3")
 ```
 
 Google Sheets를 방문 로그 저장소로 직접 사용하지 않습니다. 표가 필요하면 GA4 보고서에서 CSV로 내보내거나, 추후 Google Analytics Data API로 Sheets 보고서를 자동화하는 방식이 안전합니다.

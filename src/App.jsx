@@ -2053,9 +2053,14 @@ const GOOGLE_FORM_URL = "https://forms.gle/sosezTVEbgmTi3WF6";
 // 완료 판정은 iframe 로드 감지(자동)가 아니라 사용자가 "제출을 완료했어요"
 // 버튼을 직접 누르는 것으로만 처리한다 — cross-origin iframe이라 실제 제출
 // 여부를 코드로 알 수 없어, 자동 감지는 설문을 열거나 폼 내부 페이지를 이동만
-// 해도 완료로 오인되는 오류가 있었다. 아래 키는 그 잘못된 자동 감지로 값이
-// 저장됐던 구 버전(silock_survey_completed)과 구분하기 위해 새로 부여한 것이다.
-const SURVEY_COMPLETED_STORAGE_KEY = "silock_survey_completed_v2";
+// 해도 완료로 오인되는 오류가 있었다.
+//
+// 키를 _v3로 올린 이유: 과거 자동 감지 버전들(원본 키 silock_survey_completed,
+// 로드 횟수/체류 시간 휴리스틱을 쓰던 _v2)이 실제 참여하지 않은 방문자에게도
+// 완료 플래그를 잘못 저장해 두었다. 키를 새로 부여하면 그 잘못된 값 전체가
+// 무시(=전원 리셋)되어, 설문을 열어보기만 했던 사람도 다시 참여할 수 있다.
+// 이제 완료는 버튼 클릭으로만 저장되므로 오탐이 재발하지 않는다.
+const SURVEY_COMPLETED_STORAGE_KEY = "silock_survey_completed_v3";
 
 function readSurveyCompleted() {
   if (typeof window === "undefined") return false;
