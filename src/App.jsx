@@ -1289,7 +1289,18 @@ function ReaderJourney({
   // CTA는 리더기 하단과 화면 하단의 중간, 안내 문구는 다시 그 둘의 중간에 둔다.
   // 콘텐츠의 표시 여부와 무관하게 좌표가 고정되어 등장할 때 레이아웃이 흔들리지 않는다.
   // 리더기 자체가 커지는 화면에서는 주변 문구도 같은 비율로 확대한다.
-  const headlineFontSize = clamp(Math.round(frameWidth * 0.115), 26, 44);
+  // 모바일에서는 frameWidth 대신 viewportWidth를 기준으로 삼는다 — frameWidth는
+  // 리더기 세로 여유 공간(viewportHeight)에 따라 계산되는데, 모바일은 스크롤
+  // 중 주소창이 접혔다 펼쳐지며 viewportHeight가 계속 바뀌어 frameWidth가
+  // 커졌다 작아졌다 한다. 헤드라인 문구(예: "Silock에서 구매한 콘텐츠,")는 한
+  // 세그먼트라 줄바꿈되지 않으므로, frameWidth가 커지는 순간(예: 주소창이
+  // 접혀 화면이 "꽉 찬" 상태) 폰트도 함께 커지면서 화면 밖으로 넘칠 수 있다.
+  // viewportWidth는 실제 회전/리사이즈 때만 바뀌므로 이 문제가 없고, 0.075
+  // 비율은 이 문구가 92vw 컨테이너 안에 항상 들어가도록 실측(Noto Serif KR
+  // 700, 폭≈11.38×폰트크기) 기준으로 여유를 둔 값이다.
+  const headlineFontSize = isMobile
+    ? clamp(Math.round(viewportWidth * 0.075), 20, 30)
+    : clamp(Math.round(frameWidth * 0.115), 26, 44);
   const guideFontSize = clamp(Math.round(frameWidth * 0.052), 13, 18);
   const ctaFontSize = guideFontSize;
   const ctaButtonHeight = clamp(Math.round(ctaFontSize * 2.7), 44, 54);

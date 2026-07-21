@@ -13,7 +13,8 @@
       "Read(//c/Users/LeeJieun/**)",
       "Bash(git check-ignore *)",
       "Bash(jobs -l)",
-      "Bash(kill %1)"
+      "Bash(kill %1)",
+      "Bash(grep -n \"Silock에서</span>{\\\\\" \\\\\"}\\\\|구매한 콘텐츠,</span>\" \"C:/Users/LeeJieun/Desktop/study/coding_codeit/landing/codeset/silock_demo/src/App.jsx\")"
     ]
   }
 }
