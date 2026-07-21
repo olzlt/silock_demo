@@ -2040,16 +2040,12 @@ const LIBRARY_KF = {
 // 실제 프로젝트에서는 임베드 가능한 Google Form 링크로 교체하세요.
 // (Google Form은 "응답 수집" 켠 상태에서 우측 상단 "보내기" → <> 아이콘 → embed src 사용)
 const GOOGLE_FORM_URL = "https://forms.gle/sosezTVEbgmTi3WF6";
-// 이전 버전은 iframe 로드 2회만으로 완료를 판정해, 설문을 열기만 해도 완료로
-// 오인된 방문자가 있었다. 그 브라우저들에는 구 키(silock_survey_completed)가
-// true로 잘못 남아 있으므로, 키 이름을 새로 부여해 과거의 잘못된 값 전체를
-// 무시(=리셋)한다. 완료 판정 로직도 아래에서 체류 시간 조건을 추가해 강화한다.
+// 완료 판정은 iframe 로드 감지(자동)가 아니라 사용자가 "제출을 완료했어요"
+// 버튼을 직접 누르는 것으로만 처리한다 — cross-origin iframe이라 실제 제출
+// 여부를 코드로 알 수 없어, 자동 감지는 설문을 열거나 폼 내부 페이지를 이동만
+// 해도 완료로 오인되는 오류가 있었다. 아래 키는 그 잘못된 자동 감지로 값이
+// 저장됐던 구 버전(silock_survey_completed)과 구분하기 위해 새로 부여한 것이다.
 const SURVEY_COMPLETED_STORAGE_KEY = "silock_survey_completed_v2";
-// 제출 완료(iframe이 확인 화면으로 재로드)로 인정하기 위한 최소 체류 시간(ms).
-// Google Form은 최초 표시 과정에서 리다이렉트/재렌더로 onLoad를 여러 번(대개
-// 몇 초 이내) 발생시키므로, 이 시간이 지나기 전의 재로드는 실제 제출이 아니라
-// 초기 로딩으로 보고 완료 처리하지 않는다.
-const SURVEY_MIN_SUBMIT_MS = 15000;
 
 function readSurveyCompleted() {
   if (typeof window === "undefined") return false;
@@ -2110,8 +2106,6 @@ function FormFallback({ formUrl }) {
  */
 function SurveyModal({ open, onClose, onComplete, returnFocusRef }) {
   const containerRef = useRef(null);
-  const formLoadCountRef = useRef(0);
-  const formOpenedAtRef = useRef(0);
   const [formStatus, setFormStatus] = useState("loading"); // loading | loaded | error
   const errorTimerRef = useRef(null);
 
@@ -2126,8 +2120,6 @@ function SurveyModal({ open, onClose, onComplete, returnFocusRef }) {
 
   useEffect(() => {
     if (!open) return;
-    formLoadCountRef.current = 0;
-    formOpenedAtRef.current = Date.now();
     // Google Form은 onError가 잘 안 잡히는 경우가 있어, 일정 시간 내 onLoad가 없으면 폴백 노출
     const t = setTimeout(() => {
       setFormStatus((s) => (s === "loading" ? "error" : s));
@@ -2215,23 +2207,26 @@ function SurveyModal({ open, onClose, onComplete, returnFocusRef }) {
               <GoogleFormEmbed
                 formUrl={GOOGLE_FORM_URL}
                 onLoad={() => {
-                  formLoadCountRef.current += 1;
+                  // iframe onLoad는 최초 표시·폼 내부 페이지 이동·재렌더에서도
+                  // 발생하므로, 이것만으로는 "제출 완료"를 신뢰성 있게 구분할 수
+                  // 없다(cross-origin이라 확인 화면인지 확인 불가). 그래서 완료
+                  // 판정은 자동 감지가 아니라 사용자가 아래 "제출을 완료했어요"
+                  // 버튼을 직접 누르는 것으로만 처리한다 — 여기서는 로딩/에러
+                  // 상태만 갱신한다.
                   setFormStatus("loaded");
                   if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
-                  // Google Form은 제출 완료 후 iframe 안에서 확인 화면으로 다시
-                  // 이동한다. 다만 최초 표시 과정에서도 리다이렉트/재렌더로 onLoad가
-                  // 여러 번 발생하므로(대개 몇 초 이내), "두 번째 이후 로드"만으로
-                  // 완료를 판정하면 설문을 열기만 해도 완료로 오인된다. 충분한 체류
-                  // 시간이 지난 뒤의 재로드만 실제 제출로 간주한다.
-                  const dwell = Date.now() - formOpenedAtRef.current;
-                  if (formLoadCountRef.current > 1 && dwell > SURVEY_MIN_SUBMIT_MS) {
-                    onComplete();
-                  }
                 }}
                 onError={() => setFormStatus("error")}
               />
             </>
           )}
+        </div>
+
+        <div style={modalStyles.actionBar} className="silock-survey-actionbar">
+          <span style={modalStyles.actionHint}>설문 제출까지 마치셨나요?</span>
+          <button type="button" onClick={onComplete} style={modalStyles.confirmBtn}>
+            제출을 완료했어요
+          </button>
         </div>
       </div>
     </div>
@@ -2259,6 +2254,9 @@ const modalStyles = {
   fallback: { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, padding: "40px 12px", textAlign: "center" },
   fallbackText: { fontSize: 13, color: "#666", lineHeight: 1.6, margin: 0 },
   fallbackLink: { padding: "10px 20px", borderRadius: 999, background: COLOR.orange, color: COLOR.white, fontSize: 13, fontWeight: 700, textDecoration: "none" },
+  actionBar: { flexShrink: 0, display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: "8px 14px", padding: "12px 18px", borderTop: `1px solid ${COLOR.neutralGray}`, background: COLOR.white },
+  actionHint: { color: "#777", fontSize: 12, lineHeight: 1.4 },
+  confirmBtn: { flexShrink: 0, padding: "10px 20px", border: "none", borderRadius: 999, background: COLOR.orange, color: COLOR.white, fontSize: 13, fontWeight: 700, letterSpacing: "-0.01em", cursor: "pointer" },
 };
 
 const BRAND_VALUES = [
@@ -2606,38 +2604,105 @@ const storyStyles = {
   footerEmail: { color: "inherit", textDecoration: "none" },
 };
 
-function AlreadyParticipatedPage() {
+// 이미 참여한 사용자에게 보여주는 안내 — 예전에는 앱 전체를 이 화면으로
+// 교체(full-page)해 랜딩으로 돌아갈 방법이 없었고(새로고침해도 그대로, 뒤로가기
+// 시 사이트를 아예 나감), 그래서 "닫을 수 있는 모달"로 바꿨다. 랜딩 페이지는
+// 항상 정상적으로 보이고, 이미 참여한 사람이 "참여하기"를 다시 누르거나 방금
+// 제출을 마친 순간에만 이 모달이 뜬다.
+function AlreadyParticipatedModal({ open, onClose }) {
+  useEffect(() => {
+    if (!open) return;
+    function onKeyDown(e) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
   return (
-    <main style={participatedStyles.page}>
-      <img src={entranceLogoImg} alt="Silock" style={participatedStyles.logo} />
-      <h1 style={participatedStyles.title}>이미 참여하셨습니다</h1>
-      <p style={participatedStyles.description}>
-        소중한 의견을 보내주셔서 감사합니다
-        <br />
-        Silock의 시작 소식을 기다려주세요
-      </p>
-    </main>
+    <div
+      style={modalStyles.overlay}
+      className="silock-modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="participated-title"
+    >
+      <ModalBackdrop />
+      <div style={participatedStyles.card}>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="닫기"
+          style={participatedStyles.closeBtn}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <path d="M5 5l14 14M19 5L5 19" stroke={COLOR.white} strokeWidth="1.8" strokeLinecap="round" />
+          </svg>
+        </button>
+        <img src={entranceLogoImg} alt="Silock" style={participatedStyles.logo} />
+        <h2 id="participated-title" style={participatedStyles.title}>이미 참여하셨습니다</h2>
+        <p style={participatedStyles.description}>
+          소중한 의견을 보내주셔서 감사합니다
+          <br />
+          Silock의 시작 소식을 기다려주세요
+        </p>
+        <button type="button" onClick={onClose} style={participatedStyles.homeButton} autoFocus>
+          메인으로 돌아가기
+        </button>
+      </div>
+    </div>
   );
 }
 
 const participatedStyles = {
-  page: {
-    width: "100%",
-    minHeight: "100vh",
-    height: "100dvh",
+  card: {
+    position: "relative",
+    width: "min(440px, calc(100% - 40px))",
+    padding: "clamp(32px, 6vw, 48px) clamp(24px, 5vw, 40px)",
+    boxSizing: "border-box",
+    background: COLOR.black,
+    border: "1px solid rgba(255,255,255,0.14)",
+    borderRadius: 18,
+    boxShadow: "0 30px 80px rgba(0,0,0,0.45)",
+    color: COLOR.white,
+    textAlign: "center",
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
-    justifyContent: "center",
-    padding: 24,
-    boxSizing: "border-box",
-    background: COLOR.black,
-    color: COLOR.white,
-    textAlign: "center",
+    animation: "modal-pop-in 300ms ease-out",
   },
-  logo: { width: "clamp(150px, 22vw, 260px)", height: "auto", objectFit: "contain", marginBottom: 24 },
-  title: { margin: 0, fontSize: "clamp(26px, 4vw, 42px)", lineHeight: 1.25, letterSpacing: "-0.03em" },
-  description: { margin: "16px 0 0", fontSize: "clamp(14px, 1.8vw, 18px)", lineHeight: 1.7, color: "rgba(255,255,255,0.72)" },
+  closeBtn: {
+    position: "absolute",
+    top: 14,
+    right: 14,
+    width: 34,
+    height: 34,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    border: "none",
+    borderRadius: 10,
+    background: "rgba(255,255,255,0.08)",
+  },
+  logo: { width: "clamp(120px, 30vw, 180px)", height: "auto", objectFit: "contain", marginBottom: 20 },
+  title: { margin: 0, fontSize: "clamp(22px, 5vw, 30px)", lineHeight: 1.25, letterSpacing: "-0.03em" },
+  description: { margin: "14px 0 0", fontSize: "clamp(13px, 3.4vw, 16px)", lineHeight: 1.7, color: "rgba(255,255,255,0.72)" },
+  homeButton: {
+    marginTop: "clamp(24px, 5vw, 32px)",
+    padding: "13px 30px",
+    border: "none",
+    borderRadius: 999,
+    background: COLOR.orange,
+    color: COLOR.white,
+    fontSize: "clamp(14px, 3.4vw, 16px)",
+    fontWeight: 700,
+    letterSpacing: "-0.01em",
+  },
 };
 
 // ============================================================
@@ -2647,16 +2712,20 @@ export default function SilockLibraryDemo() {
   const [activated, setActivated] = useState(false);
   const [surveyOpen, setSurveyOpen] = useState(false);
   const [surveyCompleted, setSurveyCompleted] = useState(readSurveyCompleted);
+  // 이미 참여한 사용자에게 보여주는 안내 모달의 표시 여부. surveyCompleted(영구
+  // 저장되는 참여 기록)와 분리해, 랜딩 페이지 자체는 항상 정상적으로 노출한다.
+  const [showParticipatedNotice, setShowParticipatedNotice] = useState(false);
   const ctaRef = useRef(null);
   const storyRef = useRef(null);
 
   useEffect(() => {
-    // 입구 활성화 전 스크롤 잠금 + 설문 모달 열린 동안 배경 스크롤 잠금
-    document.body.style.overflow = !activated || surveyOpen ? "hidden" : "auto";
+    // 입구 활성화 전 스크롤 잠금 + 설문/안내 모달 열린 동안 배경 스크롤 잠금
+    document.body.style.overflow =
+      !activated || surveyOpen || showParticipatedNotice ? "hidden" : "auto";
     return () => {
       document.body.style.overflow = "auto";
     };
-  }, [activated, surveyOpen]);
+  }, [activated, surveyOpen, showParticipatedNotice]);
 
   const handleActivate = useCallback(() => {
     trackEvent("entrance_activated");
@@ -2666,10 +2735,20 @@ export default function SilockLibraryDemo() {
 
   const handleSurveyOpen = useCallback((event) => {
     if (event?.currentTarget) ctaRef.current = event.currentTarget;
+    // 이미 참여한 사용자는 설문 폼 대신 안내 모달을 띄운다(중복 응답 방지).
+    if (surveyCompleted) {
+      setShowParticipatedNotice(true);
+      return;
+    }
     trackEvent("survey_open");
     setSurveyOpen(true);
-  }, []);
+  }, [surveyCompleted]);
   const handleSurveyClose = useCallback(() => setSurveyOpen(false), []);
+  const handleParticipatedNoticeClose = useCallback(() => {
+    setShowParticipatedNotice(false);
+    // 안내를 닫으면 방금 참여하기를 눌렀던 요소로 포커스를 되돌린다.
+    ctaRef.current?.focus?.();
+  }, []);
   const handleExplore = useCallback(() => {
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     storyRef.current?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
@@ -2679,9 +2758,9 @@ export default function SilockLibraryDemo() {
     trackEvent("survey_complete");
     setSurveyOpen(false);
     setSurveyCompleted(true);
+    // 제출 직후에는 감사 안내를 한 번 보여준다(닫으면 랜딩으로 돌아간다).
+    setShowParticipatedNotice(true);
   }, []);
-
-  if (surveyCompleted) return <AlreadyParticipatedPage />;
 
   return (
     <div
@@ -3429,6 +3508,10 @@ export default function SilockLibraryDemo() {
         onClose={handleSurveyClose}
         onComplete={handleSurveyComplete}
         returnFocusRef={ctaRef}
+      />
+      <AlreadyParticipatedModal
+        open={showParticipatedNotice}
+        onClose={handleParticipatedNoticeClose}
       />
     </div>
   );
