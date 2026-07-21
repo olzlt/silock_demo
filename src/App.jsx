@@ -2274,35 +2274,36 @@ const BRAND_VALUES = [
 const FAQ_ITEMS = [
   {
     question: "Silock 서비스가 종료된 뒤에도 볼 수 있나요?",
-    answer: "그 상태를 가능하게 만드는 것이 Silock의 핵심 목표입니다. 구체적인 저장 방식과 권리 범위, 접근 구조는 독자와 창작자의 의견을 바탕으로 MVP에서 검증하고 있습니다",
+    answer: "네 그 점이 Silock의 핵심 목표입니다 구체적인 저장 방식과 접근 구조 등은 여러분의 의견을 바탕으로 검증하고 있습니다",
     answerSegments: [
-      ["그 상태를 가능하게 만드는 것이", "Silock의 핵심 목표입니다."],
-      ["구체적인 저장 방식과 권리 범위, 접근 구조는", "독자와 창작자의 의견을 바탕으로", "MVP에서 검증하고 있습니다"],
+      ["네"],
+      ["그 점이 Silock의 핵심 목표입니다"],
+      ["구체적인 저장 방식과 접근 구조 등은", "여러분의 의견을 바탕으로 검증하고 있습니다"],
     ],
   },
   {
     question: "다른 플랫폼에서 구매한 콘텐츠도 가져올 수 있나요?",
-    answer: "아니요. 지속 소장은 Silock에서 구매한 콘텐츠에만 적용됩니다. 다른 플랫폼의 구매 내역이나 콘텐츠를 가져와 보관하는 서비스는 아닙니다",
+    answer: "아니요 지속 소장은 Silock 내의 콘텐츠에만 적용됩니다 다른 플랫폼의 구매 내역이나 콘텐츠를 가져와 보관하는 서비스는 아닙니다",
     answerSegments: [
-      ["아니요."],
-      ["지속 소장은", "Silock에서 구매한 콘텐츠에만 적용됩니다."],
+      ["아니오"],
+      ["지속 소장은 Silock 내의 콘텐츠에만 적용됩니다"],
       ["다른 플랫폼의 구매 내역이나 콘텐츠를", "가져와 보관하는 서비스는 아닙니다"],
     ],
   },
   {
-    question: "어떤 콘텐츠부터 시작하나요?",
-    answer: "Silock은 웹툰·웹소설·전자책부터 시작합니다. 이후 지속 소장이 필요한 다른 디지털 창작물로 범위를 넓힐 계획입니다",
+    question: "어떤 콘텐츠를 지원하나요?",
+    answer: "웹툰, 웹소설, 전자책 등 글이나 그림으로 이루어진 디지털 창작물을 지원합니다",
     answerSegments: [
-      ["Silock은", "웹툰·웹소설·전자책부터 시작합니다."],
-      ["이후 지속 소장이 필요한", "다른 디지털 창작물로 범위를 넓힐 계획입니다"],
+      ["웹툰, 웹소설, 전자책 등"],
+      ["글이나 그림으로 이루어진", "디지털 창작물을 지원합니다"],
     ],
   },
   {
     question: "지금은 어느 단계인가요?",
-    answer: "현재는 고객 문제와 이용 의향을 확인하는 초기 검증 단계입니다. 설문 결과는 지속 소장 방식과 첫 MVP의 우선순위를 결정하는 데 사용됩니다",
+    answer: "고객 문제와 이용 의향을 확인하는 초기 단계입니다 설문 결과는 Silock의 우선순위를 결정하는 데 사용됩니다",
     answerSegments: [
-      ["현재는 고객 문제와 이용 의향을 확인하는", "초기 검증 단계입니다."],
-      ["설문 결과는 지속 소장 방식과", "첫 MVP의 우선순위를 결정하는 데 사용됩니다"],
+      ["고객 문제와 이용 의향을 확인하는 초기 단계입니다"],
+      ["설문 결과는 Silock의 우선순위를 결정하는 데 사용됩니다"],
     ],
   },
 ];
@@ -2390,7 +2391,7 @@ function BrandConceptMotion() {
         </div>
         <div className="silock-motion-caption silock-motion-caption-library">
           <strong>나의 서재</strong>
-          <span>나만의 소장 서재</span>
+          <span>각자의 소장 서재</span>
         </div>
       </div>
     </div>
@@ -2453,7 +2454,7 @@ function BrandStorySection() {
           <span className="silock-copy-segment">독자와 창작자를,</span>
           <br />
           <span className="silock-copy-segment">네모난 프레임은</span>{" "}
-          <span className="silock-copy-segment">각자의 서재를 뜻합니다</span>
+          <span className="silock-copy-segment">개인의 서재를 뜻합니다</span>
         </p>
 
         <BrandConceptMotion />
