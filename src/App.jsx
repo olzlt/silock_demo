@@ -792,16 +792,6 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
       bottomRowParticles.push(particles[getPointID(CONFIG.gridH - 1, i, CONFIG.gridH)]);
     }
 
-    // 커튼이 중력으로 늘어져 자리를 잡을 때까지만 안내 문구 위치를 갱신하고,
-    // 이후에는(마우스 상호작용으로 천이 흔들려도) 문구가 같이 흔들리지 않도록 고정한다
-    let guidePositionSettled = false;
-    let stableFrameCount = 0;
-    let unsettledFrameCount = 0;
-    let lastAvgBottomY = null;
-    const SETTLE_MOVEMENT_THRESHOLD = 0.05; // px, 프레임 간 변화가 이보다 작으면 "정지"로 간주
-    const SETTLE_STABLE_FRAMES_REQUIRED = 20; // 이만큼 연속으로 정지 상태여야 확정
-    const SETTLE_MAX_FRAMES = 240; // 4초(60fps) 안에 못 정착해도 그 시점 값으로 강제 고정
-
     function updateGuidePosition(avgBottomY) {
       const guideEl = guideRef.current;
       if (!guideEl) return;
@@ -809,6 +799,45 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
       const curtainVisualBottom = curtainTop + avgBottomY;
       const midpoint = (curtainVisualBottom + viewportHeight) / 2;
       guideEl.style.bottom = `${viewportHeight - midpoint}px`;
+    }
+
+    // 안내 문구가 출렁이지 않도록: 화면에 그리기 전에 커튼이 중력으로 완전히
+    // 늘어진 "정지 상태"를 헤드리스로 먼저 시뮬레이션해 최종 하단 위치를 구하고,
+    // 그 값으로 안내 문구를 한 번만 고정한다. 그런 다음 파티클을 초기 위치로
+    // 되돌려, 화면에는 여느 때처럼 줄이 떨어지는 연출을 그대로 보여준다.
+    // (정지 상태 기준은 스크롤 진행률 0 — 좌우로 벌어지지 않은 초기 시점.)
+    {
+      const initialState = particles.map((p) => ({
+        x: p.pos.x, y: p.pos.y, ox: p.oldPos.x, oy: p.oldPos.y,
+      }));
+      const measureAvgBottom = () =>
+        bottomRowParticles.reduce((sum, p) => sum + p.pos.y, 0) / bottomRowParticles.length;
+      const SETTLE_MAX_STEPS = 600; // 수렴하지 않아도 이 횟수에서 멈춘다
+      const SETTLE_EPS = 0.02; // 단계 간 변화가 이보다 작으면 정지로 간주
+      let prevAvg = null;
+      for (let step = 0; step < SETTLE_MAX_STEPS; step++) {
+        for (const p of particles) {
+          p.homeX = p.baseHomeX; // 벌어짐 없는 정지 상태
+          if (p.pinned) {
+            p.pos.x = p.homeX;
+            p.oldPos.x = p.homeX;
+          }
+        }
+        for (const p of particles) p.update(CONFIG.gravity, CONFIG.damping, CONFIG.restoreStrength);
+        for (let k = 0; k < CONFIG.iterationsPerFrame; k++) for (const c of constraints) c.solve();
+        const avg = measureAvgBottom();
+        if (prevAvg !== null && Math.abs(avg - prevAvg) < SETTLE_EPS) break;
+        prevAvg = avg;
+      }
+      updateGuidePosition(measureAvgBottom());
+      // 파티클을 초기 위치로 되돌려 낙하 연출을 그대로 재생한다.
+      particles.forEach((p, i) => {
+        const s = initialState[i];
+        p.pos.x = s.x;
+        p.pos.y = s.y;
+        p.oldPos.x = s.ox;
+        p.oldPos.y = s.oy;
+      });
     }
 
     // 스크롤(=버튼 속으로 다가가는 진행률)이 커질수록 줄이 ㅅ자로 더 크게 벌어지도록
@@ -831,28 +860,9 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
       for (const p of particles) p.update(CONFIG.gravity, CONFIG.damping, CONFIG.restoreStrength);
       for (let k = 0; k < CONFIG.iterationsPerFrame; k++) for (const c of constraints) c.solve();
       draw();
-
-      if (!guidePositionSettled) {
-        const avgBottomY =
-          bottomRowParticles.reduce((sum, p) => sum + p.pos.y, 0) / bottomRowParticles.length;
-        unsettledFrameCount++;
-        if (
-          lastAvgBottomY !== null &&
-          Math.abs(avgBottomY - lastAvgBottomY) < SETTLE_MOVEMENT_THRESHOLD
-        ) {
-          stableFrameCount++;
-        } else {
-          stableFrameCount = 0;
-        }
-        lastAvgBottomY = avgBottomY;
-        updateGuidePosition(avgBottomY);
-        if (
-          stableFrameCount >= SETTLE_STABLE_FRAMES_REQUIRED ||
-          unsettledFrameCount >= SETTLE_MAX_FRAMES
-        ) {
-          guidePositionSettled = true;
-        }
-      }
+      // 안내 문구 위치는 위(헤드리스 정지 시뮬레이션)에서 이미 최종값으로 한 번
+      // 고정했으므로, 매 프레임 갱신하지 않는다 — 낙하·상호작용으로 줄이 흔들려도
+      // 문구는 움직이지 않는다.
     }
     rafId = requestAnimationFrame(loop);
     return () => {
