@@ -369,17 +369,33 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
   // 서재가 다 찬 뒤에도 journeyProgress가 1.0에 닿을 때까지 아무 변화 없이 한참
   // 더 스크롤해야 하는 "죽은 구간"이 생겨, 버튼이 뜬 뒤에도 바로 아래로 내려가지
   // 못하고 버벅이는 느낌을 줬다.
+  // 서재 채우기(비교)는 남은 스크롤의 (1 - DWELL) 지점에서 100%에 도달하고,
+  // 마지막 DWELL 구간은 "다 찬 상태로 잠깐 머무는" 여운이다 — 이 동안 상단/하단
+  // 문구가 다 보이고 '더 알아보기' 화살표가 깜빡이며, 그 뒤에 고정이 풀려 다음
+  // 섹션으로 넘어간다(완성 화면을 읽을 시간).
   const comparisonProgress =
     comparisonBaseline === null
       ? 0
-      : clamp01((libraryProgress - comparisonBaseline) / (1 - comparisonBaseline));
-  // 가득 찬 서재 전환이 90%에 도달하면 가치 문구와 CTA를 한 번에 노출한다.
-  // 서로 다른 libraryProgress 구간을 쓰지 않고 실제 비교 전환률을 단일 기준으로
-  // 삼아, 완성 화면에서 여러 스텝으로 나뉘어 보이지 않게 한다.
-  const showCompletionContent = bootDone && comparisonProgress >= LIBRARY_KF.contentRevealAt;
-  const showLibraryGuide = bootDone && !showCompletionContent;
-  const showValue = showCompletionContent;
-  const showCTA = showCompletionContent;
+      : clamp01(
+          (libraryProgress - comparisonBaseline) /
+            ((1 - comparisonBaseline) * (1 - LIBRARY_COMPLETION_DWELL))
+        );
+  // 완성 콘텐츠(리더기 상단 헤드라인 + 하단 안내/버튼/화살표)는 한 번에 팝업되지
+  // 않고, 비교 전환률 contentRevealStart(70%)~contentRevealAt(90%) 구간에 걸쳐
+  // 서서히 나타난다(contentReveal 0→1). 90%에서 완전히 보이며, 그 지점부터
+  // 버튼/화살표가 클릭 가능(showCTA)해진다.
+  const contentReveal = bootDone
+    ? clamp01(
+        (comparisonProgress - LIBRARY_KF.contentRevealStart) /
+          (LIBRARY_KF.contentRevealAt - LIBRARY_KF.contentRevealStart)
+      )
+    : 0;
+  // 좌우 비교 안내("아래로 스크롤하여…")는 완성 콘텐츠가 나타나는 만큼 반대로
+  // 사라진다(교차 페이드).
+  const libraryGuideReveal = bootDone ? 1 - contentReveal : 0;
+  // 버튼·화살표가 클릭 가능해지는 시점 — 완성 콘텐츠가 (거의) 완전히 드러난 뒤.
+  // contentReveal 기준으로 맞춰, "다 보이는데 아직 클릭 안 되는" 틈이 없게 한다.
+  const showCTA = contentReveal >= 0.999;
 
   const CURTAIN_TOP_RATIO = 0.72; // roofHeight의 70% 지점에서 커튼 시작 (숫자는 조절 가능)
   const CURTAIN_BOTTOM_RATIO = 0.14; // 커튼 하단 ~ 화면 하단 간격 = 화면 높이의 14% (화면 비율에 따라 함께 움직이도록 고정 px 대신 비율로 계산)
@@ -1058,8 +1074,8 @@ return (
                 bootDone={bootDone}
                 onBootComplete={() => setBootDone(true)}
                 comparisonProgress={comparisonProgress}
-                showGuide={showLibraryGuide}
-                showValue={showValue}
+                contentReveal={contentReveal}
+                libraryGuideReveal={libraryGuideReveal}
                 showCTA={showCTA}
                 onSurveyOpen={onSurveyOpen}
                 onExplore={onExplore}
@@ -1196,11 +1212,14 @@ const eStyles = {
 // "다음 페이지로 넘어가듯" 튀지 않도록, 같은 리더기 요소가 같은 화면 안에서
 // 계속 이어져 켜지게 하기 위함이다
 const ENTRANCE_SCROLL_VH = 400;
-// 예전에는 이 구간의 절반가량(약 138vh)이 "서재가 다 찬 뒤 고정이 풀릴 때까지
-// 기다리는" 죽은 스크롤이었다(위 comparisonProgress 설명 참고). 이제 채우기가 이
-// 구간 전체에 걸쳐 끝나므로, 채우기 속도가 예전과 비슷하도록 값을 줄인다 — 그만큼
-// 총 스크롤량도 줄어 "한참 스크롤해야 내려가는" 문제가 사라진다.
-const LIBRARY_SCROLL_VH = 140;
+// 이 구간에서 서재 채우기(비교)가 진행되고, 마지막 일부는 "다 찬 상태로 잠깐
+// 머무는" 여운 구간(LIBRARY_COMPLETION_DWELL)이다. 채우기 속도가 예전과 비슷하도록
+// 여운을 더한 만큼 값을 잡는다.
+const LIBRARY_SCROLL_VH = 150;
+// 서재가 100% 찬 뒤, 고정(sticky)이 풀려 다음 섹션으로 넘어가기 전까지 남겨 두는
+// 여운 구간의 비율(남은 스크롤 대비). 이 동안 상단/하단 문구가 다 보이고 '더
+// 알아보기' 화살표가 깜빡이며, 완성 화면을 읽을 시간을 준다.
+const LIBRARY_COMPLETION_DWELL = 0.2;
 const TOTAL_SCROLL_VH = ENTRANCE_SCROLL_VH + LIBRARY_SCROLL_VH;
 const ENTRANCE_PHASE_END = ENTRANCE_SCROLL_VH / TOTAL_SCROLL_VH;
 
@@ -1301,8 +1320,8 @@ function ReaderJourney({
   bootDone,
   onBootComplete,
   comparisonProgress,
-  showGuide,
-  showValue,
+  contentReveal,
+  libraryGuideReveal,
   showCTA,
   onSurveyOpen,
   onExplore,
@@ -1378,7 +1397,7 @@ function ReaderJourney({
           width: `min(${headlineWidth}px, 92vw)`,
         }}
       >
-        <ValueHeadline visible={bootDone && showValue} isMobile={isMobile} fontSize={headlineFontSize} />
+        <ValueHeadline reveal={contentReveal} isMobile={isMobile} fontSize={headlineFontSize} />
       </div>
       <div
         style={{
@@ -1408,8 +1427,8 @@ function ReaderJourney({
         }}
       >
         <LoadingGuide visible={booting && !bootDone} fontSize={guideFontSize} />
-        <ComparisonGuide visible={bootDone && showGuide} fontSize={guideFontSize} />
-        <CTAGuide visible={bootDone && showValue} isMobile={isMobile} fontSize={guideFontSize} />
+        <ComparisonGuide reveal={libraryGuideReveal} fontSize={guideFontSize} />
+        <CTAGuide reveal={contentReveal} isMobile={isMobile} fontSize={guideFontSize} />
       </div>
       <div
         style={{
@@ -1420,7 +1439,8 @@ function ReaderJourney({
         }}
       >
         <SurveyCTA
-          visible={bootDone && showCTA}
+          reveal={contentReveal}
+          active={showCTA}
           onClick={onSurveyOpen}
           buttonRef={ctaRef}
           fontSize={ctaFontSize}
@@ -1429,7 +1449,8 @@ function ReaderJourney({
         />
       </div>
       <ExploreArrow
-        visible={bootDone && showCTA}
+        reveal={contentReveal}
+        active={showCTA}
         onClick={onExplore}
         top={exploreCenterY}
         fontSize={guideFontSize}
@@ -1721,9 +1742,9 @@ function LoadingGuide({ visible, fontSize }) {
   );
 }
 
-function ComparisonGuide({ visible, fontSize }) {
+function ComparisonGuide({ reveal, fontSize }) {
   return (
-    <div style={{ ...guideStyles.wrap, fontSize, opacity: visible ? 1 : 0 }}>
+    <div style={{ ...guideStyles.wrap, fontSize, opacity: reveal, pointerEvents: reveal > 0.05 ? "auto" : "none" }}>
       <span className="silock-copy-segment">아래로 스크롤하여</span>{" "}
       <span className="silock-copy-segment">서재의 변화를 확인하세요</span>
     </div>
@@ -1745,14 +1766,14 @@ const guideStyles = {
 // 웹(데스크톱)에서는 한 줄로, 앱(모바일)에서는 지정된 지점에서만 줄바꿈되도록
 // 두 세그먼트로 나눠 두고 isMobile일 때만 그 사이에 <br/>을 넣는다 — 문장 폭에
 // 따라 브라우저가 임의의 지점에서 어색하게 줄바꿈하는 것을 막기 위함이다
-function ValueHeadline({ visible, isMobile, fontSize }) {
+function ValueHeadline({ reveal, isMobile, fontSize }) {
   return (
     <h3
       style={{
         ...valueStyles.headline,
         fontSize,
-        opacity: visible ? 1 : 0,
-        transform: `translateY(${visible ? 0 : 8}px)`,
+        opacity: reveal,
+        transform: `translateY(${(1 - reveal) * 8}px)`,
       }}
     >
       <span className="silock-copy-segment">Silock에서 구매한 콘텐츠,</span>
@@ -1763,14 +1784,14 @@ function ValueHeadline({ visible, isMobile, fontSize }) {
 }
 // 참여하기 버튼 바로 위 안내 슬롯 — 좌우 비교 안내(ComparisonGuide)가 끝난 자리를
 // 이어받아, 버튼을 누르면 무엇을 할 수 있는지(설문 참여 / 오픈 알림) 안내한다.
-function CTAGuide({ visible, fontSize }) {
+function CTAGuide({ reveal, fontSize }) {
   return (
     <p
       style={{
         ...valueStyles.sub,
         fontSize,
-        opacity: visible ? 1 : 0,
-        transform: `translateY(${visible ? 0 : 8}px)`,
+        opacity: reveal,
+        transform: `translateY(${(1 - reveal) * 8}px)`,
       }}
     >
       <span className="silock-copy-segment">설문에 참여하고</span>{" "}
@@ -1799,21 +1820,21 @@ const valueStyles = {
   },
 };
 
-function SurveyCTA({ visible, onClick, buttonRef, fontSize, height, paddingInline }) {
+function SurveyCTA({ reveal, active, onClick, buttonRef, fontSize, height, paddingInline }) {
   return (
     <button
       ref={buttonRef}
       type="button"
       onClick={onClick}
-      disabled={!visible}
+      disabled={!active}
       style={{
         ...ctaStyles.button,
         height,
         paddingInline,
         fontSize,
-        opacity: visible ? 1 : 0,
-        transform: `translateY(${visible ? 0 : 14}px)`,
-        pointerEvents: visible ? "auto" : "none",
+        opacity: reveal,
+        transform: `translateY(${(1 - reveal) * 14}px)`,
+        pointerEvents: active ? "auto" : "none",
       }}
     >
       참여하기
@@ -1824,7 +1845,7 @@ function SurveyCTA({ visible, onClick, buttonRef, fontSize, height, paddingInlin
   );
 }
 
-function ExploreArrow({ visible, onClick, top, fontSize }) {
+function ExploreArrow({ reveal, active, onClick, top, fontSize }) {
   const iconSize = fontSize + 5;
   return (
     <button
@@ -1832,14 +1853,14 @@ function ExploreArrow({ visible, onClick, top, fontSize }) {
       className="silock-explore-arrow"
       onClick={onClick}
       aria-label="브랜드 이야기로 이동"
-      disabled={!visible}
+      disabled={!active}
       style={{
         ...ctaStyles.exploreArrow,
         top,
         fontSize,
-        opacity: visible ? 1 : 0,
-        pointerEvents: visible ? "auto" : "none",
-        transform: `translate(-50%, -50%) translateY(${visible ? 0 : -6}px)`,
+        opacity: reveal,
+        pointerEvents: active ? "auto" : "none",
+        transform: `translate(-50%, -50%) translateY(${(1 - reveal) * -6}px)`,
       }}
     >
       <span>더 알아보기</span>
@@ -1946,9 +1967,11 @@ const readerStyles = {
 
 // 진행률(0~1, 리더기 구간 로컬 기준) 구간별로 무엇이 바뀌는지 정의한다
 //  - comparison: 빈 서재(0) → 가득 찬 서재(1)로 채워지는 구간
-//  - contentRevealAt: 완성 화면의 문구와 버튼이 동시에 나타나는 비교 진행률
+//  - contentRevealStart~contentRevealAt: 완성 화면의 문구·버튼이 서서히 나타나는
+//    비교 진행률 구간(70%에서 나타나기 시작해 90%에서 완전히 보인다)
 const LIBRARY_KF = {
   comparison: [[0.08, 0], [0.55, 1]],
+  contentRevealStart: 0.7,
   contentRevealAt: 0.9,
 };
 
