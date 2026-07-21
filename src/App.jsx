@@ -577,15 +577,29 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
         if (columnLength >= CONFIG.gridH) break;
       }
 
-      const columnText = columnWords.join(" ");
+      // 한 단어의 글자는 반드시 인접한 행에 붙여(공백 없는 단어가 "위 하 여"처럼
+      // 쪼개지지 않게) 배치하고, 남는 빈 행은 "단어와 단어 사이"에만 고르게
+      // 분배한다. 첫 글자는 첫 행, 마지막 글자는 마지막 행에 놓아 모든 열의
+      // 시각적 길이(위·아래 정렬)는 그대로 유지한다.
       const rowChars = Array(CONFIG.gridH).fill(" ");
-      // 남는 높이는 자간과 띄어쓰기 간격에 고르게 분산하고 마지막 실제 글자를
-      // 항상 커튼의 마지막 줄에 놓아 모든 열의 시각적 길이를 동일하게 맞춘다
-      for (let charIndex = 0; charIndex < columnText.length; charIndex++) {
-        const rowIndex = columnText.length === 1
-          ? CONFIG.gridH - 1
-          : Math.round((charIndex * (CONFIG.gridH - 1)) / (columnText.length - 1));
-        rowChars[rowIndex] = columnText[charIndex];
+      const totalChars = columnWords.reduce((sum, w) => sum + w.length, 0);
+      const gapCount = columnWords.length - 1; // 단어 사이 간격 개수
+      // 위 while 루프가 (글자수 + 단어사이공백) ≤ gridH가 되도록 채우므로
+      // emptyRows ≥ gapCount → 각 간격에 최소 1개의 빈 행이 보장된다.
+      const emptyRows = Math.max(0, CONFIG.gridH - totalChars);
+      const baseGap = gapCount > 0 ? Math.floor(emptyRows / gapCount) : 0;
+      let extraGap = gapCount > 0 ? emptyRows % gapCount : 0; // 앞쪽 간격부터 하나씩 더
+      let row = 0;
+      for (let w = 0; w < columnWords.length; w++) {
+        const word = columnWords[w];
+        for (let k = 0; k < word.length; k++) {
+          if (row < CONFIG.gridH) rowChars[row] = word[k];
+          row++;
+        }
+        if (w < columnWords.length - 1) {
+          row += baseGap + (extraGap > 0 ? 1 : 0); // 단어 사이 빈 행
+          if (extraGap > 0) extraGap--;
+        }
       }
 
       // 버튼(중앙) 기준 왼쪽 열은 -1, 오른쪽 열은 +1 — 같은 열의 모든 줄이
