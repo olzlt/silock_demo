@@ -2494,8 +2494,8 @@ function BrandConceptMotion() {
         </div>
 
         <div className="silock-motion-caption silock-motion-caption-crowd">
-          <strong>소장을 원하는 사람들</strong>
-          <span>독자와 창작자</span>
+          <strong>독자와 창작자</strong>
+          <span>소장을 원하는 사람들</span>
         </div>
         <div className="silock-motion-caption silock-motion-caption-platform">
           <strong>Silock에서 구매</strong>
