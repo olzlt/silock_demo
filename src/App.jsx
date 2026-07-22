@@ -2366,10 +2366,14 @@ const FAQ_ITEMS = [
     question: "Silock 서비스가 종료된 뒤에도 볼 수 있나요?",
     answer: "네\n그 점이 Silock의 핵심 목표입니다 구체적인 저장 방식과 접근 구조 등은 여러분의 의견을 바탕으로 검증하고 있습니다",
     answerSegments: [
-      ["네\n"],
+      ["네"],
       ["그 점이 Silock의 핵심 목표입니다"],
       ["구체적인 저장 방식과 접근 구조 등은", "여러분의 의견을 바탕으로 검증하고 있습니다"],
     ],
+    // "네"는 뒷 문장과 폭에 따라 같은 줄에 붙어 보일 수 있어, 항상 단독 줄로
+    // 떨어지도록 첫 문장 뒤에만 강제 줄바꿈을 넣는다(다른 문항의 문장 사이
+    // 줄바꿈은 화면 폭에 따라 자연스럽게 정해지도록 그대로 둔다).
+    breakAfter: [0],
   },
   {
     question: "다른 플랫폼에서 구매한 콘텐츠도 가져올 수 있나요?",
@@ -2379,6 +2383,7 @@ const FAQ_ITEMS = [
       ["지속 소장은 Silock에서 구매하신", "디지털 콘텐츠에만 적용됩니다"],
       ["다른 플랫폼의 구매 내역이나 콘텐츠를", "가져와 보관하는 서비스는 아닙니다"],
     ],
+    breakAfter: [0],
   },
   {
     question: "어떤 콘텐츠를 지원하나요?",
@@ -2398,7 +2403,13 @@ const FAQ_ITEMS = [
   },
 ];
 
-function MeaningfulCopy({ sentences }) {
+// sentences의 각 문장 그룹은 기본적으로 공백으로 이어붙어, 화면 폭에 따라 자연스러운
+// 지점에서 줄바꿈된다(하나의 문장을 여러 그룹으로 쪼개 놓은 경우가 많아, 그룹 사이를
+// 항상 강제로 끊으면 오히려 한 문장이 부자연스럽게 잘린다). breakAfter에 문장
+// 인덱스를 넣으면 그 문장 뒤에서만 예외적으로 항상 줄을 바꾼다 — "네"/"아니오"처럼
+// 그 자체로 독립된 한 단어짜리 문장을 뒷 문장과 폭에 따라 붙었다 떨어졌다 하지 않고
+// 항상 단독 줄에 두고 싶을 때 쓴다.
+function MeaningfulCopy({ sentences, breakAfter = [] }) {
   return sentences.map((phrases, sentenceIndex) => (
     <Fragment key={`${sentenceIndex}-${phrases.join("-")}`}>
       <span className="silock-sentence-segment">
@@ -2409,7 +2420,11 @@ function MeaningfulCopy({ sentences }) {
           </Fragment>
         ))}
       </span>
-      {sentenceIndex < sentences.length - 1 ? " " : null}
+      {sentenceIndex < sentences.length - 1
+        ? breakAfter.includes(sentenceIndex)
+          ? <br />
+          : " "
+        : null}
     </Fragment>
   ));
 }
@@ -2614,7 +2629,7 @@ function FAQSection() {
                 <span className="silock-faq-plus" aria-hidden="true">+</span>
               </summary>
               <p aria-label={item.answer}>
-                <MeaningfulCopy sentences={item.answerSegments} />
+                <MeaningfulCopy sentences={item.answerSegments} breakAfter={item.breakAfter} />
               </p>
             </details>
           ))}
