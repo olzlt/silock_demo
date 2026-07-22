@@ -1804,10 +1804,27 @@ const libStyles = {
   emptyBoxTitle: { margin: 0, fontSize: 17, fontWeight: 700, color: COLOR.black },
   pageIndicator: { textAlign: "center", fontSize: 8, color: "#b8b8b8", padding: "5px 0 9px", flexShrink: 0 },
   bookGridWrap: { flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", padding: "12px 20px", overflow: "hidden" },
-  bookGrid: { display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "10px 12px", width: "100%" },
+  // 2×2 책 그리드가 리더기 화면의 남은 세로 공간(상단 바·페이지 표시를 뺀 영역)을
+  // 절대 넘지 않도록 "contain"으로 배치한다. 예전에는 그리드 폭(width:100%)과 각
+  // 표지의 aspectRatio만으로 높이가 정해져, 화면이 낮은 모바일에서 2행 높이가
+  // 남은 공간보다 커지면 위/아래로 넘쳐 상단 두 권의 윗부분·하단 두 권의 아랫부분이
+  // 잘렸다. 이제 그리드 자체에 높이(100%)와 2×2 비율(6:8.2 = 2*3 : 2*4.1)을 주고
+  // maxWidth/maxHeight로 가두면, 세로가 부족하면 높이에 맞춰 폭이 함께 줄며 항상
+  // 온전히 들어간다(가로 중앙 정렬).
+  bookGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, 1fr)",
+    gridTemplateRows: "repeat(2, 1fr)",
+    gap: "10px 12px",
+    height: "100%",
+    aspectRatio: "6 / 8.2",
+    maxWidth: "100%",
+    maxHeight: "100%",
+  },
   bookCover: {
     width: "100%",
-    aspectRatio: "3 / 4.1",
+    height: "100%",
+    minHeight: 0,
     borderRadius: 4,
     display: "flex",
     flexDirection: "column",
