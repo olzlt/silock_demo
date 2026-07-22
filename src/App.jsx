@@ -1176,6 +1176,7 @@ return (
                 bootDone={bootDone}
                 onBootComplete={() => setBootDone(true)}
                 comparisonProgress={comparisonProgress}
+                scrollDirection={scrollDirection}
                 contentReveal={contentReveal}
                 libraryGuideReveal={libraryGuideReveal}
                 showCTA={showCTA}
@@ -1337,12 +1338,17 @@ const GATE_KF = {
   opacity: [[0, 1], [0.4, 1], [0.58, 0], [1, 0]],
 };
 // 안내 문구("아래로 스크롤하여 서재 안으로 들어가세요")는 지붕·커튼·로고 그룹
-// (GATE_KF.opacity, 0.58에서 완전히 사라짐)과 별개로 훨씬 더 늦게까지 보이게
-// 한다 — 카메라가 로고 속으로 다 들어간 뒤(0.58~0.75)에도 안내가 없어 화면이
-// "빈 채로" 스크롤되는 구간이 있었다. 리더기(KF.readerOpacity)가 나타나기
-// 시작하는 0.75 직전(0.75)에 다 사라지도록 맞춰서, 안내 문구와 리더기가
-// 동시에 화면에 떠 있는 시점이 아예 생기지 않게 한다(겹침 방지).
-const GUIDE_OPACITY_KF = [[0, 1], [0.57, 1], [0.75, 0], [1, 0]];
+// (GATE_KF.opacity, 0.58에서 완전히 사라짐)과 별개로 진행률 1(=리더기 부팅 시작,
+// LoadingGuide "잠시만 기다려주세요"가 뜨는 시점)까지 계속 보이게 한다 — 그래야
+// "스크롤 안내가 사라진 뒤 로딩 문구가 뜨기 전까지 아무 문구도 없는" 빈 구간이
+// 생기지 않는다. 리더기(KF.readerOpacity 0.75~1, translateY로 떠오르는 구간
+// 0.8~1)와 표시 구간이 겹치지만, 이 안내 문구는 화면 맨 아래 쪽(guideBottom,
+// 뷰포트 높이의 대략 7%)에 있고 리더기는 그 아래로 최소
+// READER_CAPTION_GAP+READER_CAPTION_RESERVE(150px)만큼 여백을 반드시 확보하도록
+// 배치되므로(ReaderJourney의 rawMaxCenterY 계산 참고), 리더기가 다 떠오르기
+// 전이라도 화면상 서로 겹치는 자리에 있지 않다 — 시간상으로만 겹치고 공간상으로는
+// 겹치지 않는다.
+const GUIDE_OPACITY_KF = [[0, 1], [0.85, 1], [1, 0]];
 // 버튼 속으로 다가갈수록(스크롤 진행률↑) 커튼 줄이 11자로(위아래 구분 없이 나란히)
 // 더 크게 벌어지도록 하는 0~1 정규화 계수 — 실제 픽셀 이동량은 maxSpreadPx를 곱해서 구한다
 const CURTAIN_SPREAD_KF = [[0, 0], [0.4, 1], [1, 1]];
@@ -1444,6 +1450,7 @@ function ReaderJourney({
   bootDone,
   onBootComplete,
   comparisonProgress,
+  scrollDirection,
   contentReveal,
   libraryGuideReveal,
   showCTA,
@@ -1562,7 +1569,7 @@ function ReaderJourney({
         }}
       >
         <LoadingGuide visible={booting && !bootDone} fontSize={guideFontSize} />
-        <ComparisonGuide reveal={libraryGuideReveal} fontSize={guideFontSize} />
+        <ComparisonGuide reveal={libraryGuideReveal} fontSize={guideFontSize} scrollDirection={scrollDirection} />
         <CTAGuide reveal={contentReveal} isMobile={isMobile} fontSize={guideFontSize} />
       </div>
       <div
@@ -1894,11 +1901,20 @@ function LoadingGuide({ visible, fontSize }) {
   );
 }
 
-function ComparisonGuide({ reveal, fontSize }) {
+function ComparisonGuide({ reveal, fontSize, scrollDirection }) {
   return (
     <div style={{ ...guideStyles.wrap, fontSize, opacity: reveal, pointerEvents: reveal > 0.05 ? "auto" : "none" }}>
-      <span className="silock-copy-segment">아래로 스크롤하여</span>{" "}
-      <span className="silock-copy-segment">서재의 변화를 확인하세요</span>
+      {scrollDirection === "up" ? (
+        <>
+          <span className="silock-copy-segment">위로 스크롤하여</span>{" "}
+          <span className="silock-copy-segment">서재의 변화를 확인하세요</span>
+        </>
+      ) : (
+        <>
+          <span className="silock-copy-segment">아래로 스크롤하여</span>{" "}
+          <span className="silock-copy-segment">서재의 변화를 확인하세요</span>
+        </>
+      )}
     </div>
   );
 }
@@ -2729,7 +2745,7 @@ const storyStyles = {
   orangeText: { color: COLOR.orange },
   lead: { margin: "28px 0 0", color: "#5f5f5f", fontSize: "clamp(16px, 1.7vw, 21px)", lineHeight: 1.75, letterSpacing: "-0.02em" },
   valueCard: { minHeight: 250, padding: "30px 28px", border: `1px solid ${COLOR.neutralGray}`, borderRadius: 14, background: COLOR.white, display: "flex", flexDirection: "column" },
-  cardNumber: { color: COLOR.orange, fontSize: "clamp(16px, 1.35vw, 20px)", fontWeight: 800, lineHeight: 1, letterSpacing: "0.12em" },
+  cardNumber: { color: COLOR.orange, fontSize: "clamp(20px, 1.8vw, 26px)", fontWeight: 800, lineHeight: 1, letterSpacing: "0.12em" },
   cardTitle: { minHeight: "2.6em", margin: "28px 0 12px", color: COLOR.black, fontSize: "clamp(19px, 2vw, 25px)", lineHeight: 1.3, letterSpacing: "-0.035em", display: "flex", alignItems: "flex-end" },
   cardDescription: { margin: 0, color: "#686868", fontSize: 15, lineHeight: 1.7, letterSpacing: "-0.018em" },
   faqIntro: { position: "sticky", top: 96, alignSelf: "start" },
@@ -3478,13 +3494,13 @@ export default function SilockLibraryDemo() {
         .silock-faq-question {
           min-width: 0;
           display: grid;
-          grid-template-columns: 34px minmax(0, 1fr);
+          grid-template-columns: 46px minmax(0, 1fr);
           align-items: baseline;
           gap: 12px;
         }
         .silock-faq-question small {
           color: ${COLOR.orange};
-          font-size: 10px;
+          font-size: clamp(14px, 1.4vw, 18px);
           font-weight: 900;
           letter-spacing: 0.12em;
         }
@@ -3621,7 +3637,7 @@ export default function SilockLibraryDemo() {
           .silock-faq-layout > div:first-child { position: static !important; }
           .silock-faq-item summary { min-height: 74px; padding: 20px 2px; }
           .silock-faq-item p { margin: -2px 34px 24px 2px; }
-          .silock-faq-question { grid-template-columns: 28px minmax(0, 1fr); gap: 8px; }
+          .silock-faq-question { grid-template-columns: 38px minmax(0, 1fr); gap: 8px; }
         }
         /* 위 760px 이하 규칙은 값이 고정 px라 "화면 폭에 반응해 움직이지" 않는다 —
            760px 폰과 320px 폰이 똑같은 크기의 아이콘 박스·캡션을 받는다. 폭이
