@@ -1163,13 +1163,14 @@ return (
                 onExplore={onExplore}
                 ctaRef={ctaRef}
                 isMobile={isMobile}
-                // 실제 보이는 화면 높이를 그대로 사용해야 낮은 노트북에서도
-                // 리더기·안내 문구·CTA의 중간 지점 계산이 정확하게 유지된다.
+                // 데스크톱은 live 화면 높이를 그대로 써서 낮은 노트북에서도 리더기·
+                // 안내 문구·CTA의 세로 계산이 정확히 유지된다. 모바일은 아래
+                // stableViewportHeight를 써서 서재 화면 전체를 안정 높이에 묶는다.
                 viewportHeight={viewportHeight}
                 viewportWidth={viewportWidth}
-                // 리더기 "크기" 계산에는 흔들리지 않는 안정 높이를 쓴다(위치·간격은
-                // 위 live viewportHeight 그대로). 모바일 스크롤 중 주소창 토글로
-                // 리더기가 커졌다 작아졌다 하는 것을 막는다.
+                // 모바일 서재 화면(리더기 크기 + 리더기·헤드라인·안내문구·CTA의 세로
+                // 위치) 전체를 이 "흔들리지 않는 높이"로 계산해, 주소창(검색창)이
+                // 나타났다 사라져도 화면이 움찔거리지 않게 한다.
                 stableViewportHeight={stableViewportHeight}
               />
             </>
@@ -1424,23 +1425,27 @@ function ReaderJourney({
   // 위/아래 텍스트 영역은 리더기 높이를 기준으로 "리더기로부터 고정 간격"에만
   // 배치한다 — 같은 flex 그룹으로 묶어 함께 가운데 정렬하면 콘텐츠 유무에 따라
   // 전체 그룹 높이가 바뀌면서 리더기까지 밀려 움직이기 때문이다
-  // 리더기 "크기"는 모바일에서만 안정 높이(주소창 토글에 흔들리지 않는 최대 높이)로
-  // 계산한다 — 주소창이 접혔다 펴지며 리더기가 커졌다 작아졌다 하는 것을 막기 위함.
-  // 데스크톱은 주소창이 없어 이 문제가 없으므로 종전대로 live viewportHeight를 써서
-  // 창 높이에 맞는 반응형 크기를 그대로 유지한다. 리더기 "위치"·주변 문구 간격은
-  // 모바일에서도 아래에서 계속 live viewportHeight를 쓰므로 화면에 맞는 배치는 유지된다.
-  const sizingHeight = isMobile ? (stableViewportHeight ?? viewportHeight) : viewportHeight;
+  // 모바일에서는 리더기 서재 화면 전체(리더기 크기 + 리더기·헤드라인·안내문구·CTA의
+  // 세로 위치)를 "흔들리지 않는 높이"(주소창이 접힌 최대 높이)로 계산한다.
+  // 사용자가 위로 스크롤하거나 화면을 살짝 건드려 주소창(검색창)이 나타나면
+  // innerHeight가 줄어드는데, 이를 live로 쓰면 그 값에 묶인 리더기 크기와 모든
+  // 세로 좌표가 다시 계산되어 서재 화면 전체가 위아래로 움찔거린다. 안정 높이로
+  // 묶으면 주소창이 나타났다 사라져도 구성 요소들이 화면 위(top)로부터 같은 자리에
+  // 그대로 있어 움직이지 않는다. 서재 구간은 아래로 스크롤해 들어오므로 이 시점의
+  // 안정 높이는 이미 "주소창이 접힌" 실제 높이와 같다. 데스크톱은 주소창이 없어
+  // 이 문제가 없으므로 종전대로 live viewportHeight를 그대로 쓴다.
+  const layoutHeight = isMobile ? (stableViewportHeight ?? viewportHeight) : viewportHeight;
   const { width: frameWidth, height: frameHeight } = computeReaderFrameSize(
     viewportWidth,
-    sizingHeight,
+    layoutHeight,
     isMobile
   );
   // 리더기를 화면 전체의 정중앙에 두되, 화면이 낮아 위쪽 헤드라인이나 아래쪽
   // 캡션(안내 문구/가치 설명/CTA)이 잘릴 상황에서만 그만큼 위/아래로 밀어 넣는다
   const minCenterY = frameHeight / 2 + READER_TOP_MARGIN + READER_HEADLINE_GAP + READER_HEADLINE_RESERVE;
-  const rawMaxCenterY = viewportHeight - frameHeight / 2 - READER_CAPTION_GAP - READER_CAPTION_RESERVE;
+  const rawMaxCenterY = layoutHeight - frameHeight / 2 - READER_CAPTION_GAP - READER_CAPTION_RESERVE;
   const maxCenterY = Math.max(minCenterY, rawMaxCenterY);
-  const readerCenterY = clamp(viewportHeight / 2, minCenterY, maxCenterY);
+  const readerCenterY = clamp(layoutHeight / 2, minCenterY, maxCenterY);
   const readerBottomY = readerCenterY + frameHeight / 2;
   // CTA는 리더기 하단과 화면 하단의 중간, 안내 문구는 다시 그 둘의 중간에 둔다.
   // 콘텐츠의 표시 여부와 무관하게 좌표가 고정되어 등장할 때 레이아웃이 흔들리지 않는다.
@@ -1463,12 +1468,12 @@ function ReaderJourney({
   const ctaPaddingInline = clamp(Math.round(ctaFontSize * 2.2), 30, 44);
   const headlineWidth = clamp(Math.round(frameWidth * 1.75), 360, 760);
   const guideWidth = clamp(Math.round(frameWidth * 1.55), 340, 680);
-  const ctaCenterY = readerBottomY + (viewportHeight - readerBottomY) / 2;
+  const ctaCenterY = readerBottomY + (layoutHeight - readerBottomY) / 2;
   const ctaTopY = ctaCenterY - ctaButtonHeight / 2;
   const ctaBottomY = ctaCenterY + ctaButtonHeight / 2;
   // 안내 문구는 버튼 중심이 아니라 실제 버튼 윗면과 리더기 하단 사이의 정중앙에 둔다.
   const ctaGuideCenterY = (readerBottomY + ctaTopY) / 2;
-  const exploreCenterY = (ctaBottomY + viewportHeight) / 2;
+  const exploreCenterY = (ctaBottomY + layoutHeight) / 2;
 
   return (
     <div
