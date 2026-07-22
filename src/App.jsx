@@ -6,6 +6,7 @@ import { trackEvent } from "./analytics.js";
 
 import {
   Fragment,
+  memo,
   useRef,
   useEffect,
   useLayoutEffect,
@@ -1742,7 +1743,10 @@ function DeletedDocGlyph({ size = 42 }) {
   );
 }
 
-function EmptyLibrary({ screenWidth, screenHeight }) {
+// memo: 빈 서재("삭제된 콘텐츠") 화면은 screenWidth/screenHeight에만 의존하는데,
+// 이 값들은 스크롤 진행률이 아니라 리더기 프레임 크기에서 나온다 — 스크롤 중에는
+// 바뀌지 않으므로(모바일도 안정 높이 기준) 매 프레임 재조정할 필요가 없다.
+const EmptyLibrary = memo(function EmptyLibrary({ screenWidth, screenHeight }) {
   // 리더기 화면 크기에 비례해 "삭제된 콘텐츠" 아이콘/문구 크기를 정한다 — 고정 px로
   // 두면 리더기가 커지는 화면에서 유독 작아 보인다.
   const minSide = Math.min(screenWidth, screenHeight);
@@ -1758,7 +1762,7 @@ function EmptyLibrary({ screenWidth, screenHeight }) {
       </div>
     </LibraryScreenChrome>
   );
-}
+});
 
 /** vol.01 표지 — 원과 반원/점이 결합된 페이즐리형 모노그램 */
 function PaisleyGlyph({ accent }) {
@@ -1830,7 +1834,11 @@ function FilledBookCover({ book, index }) {
   );
 }
 
-function FilledLibrary() {
+// memo: 가득 찬 서재(책 그리드 4권 + 상단 크롬)는 props가 없고 내용이 완전히
+// 정적이라 스크롤 진행률이 바뀌어도 다시 그릴 필요가 없다. 부모(LibraryComparison)는
+// 매 프레임 progress로 다시 렌더링되지만, memo 덕분에 이 무거운 SVG 서브트리는
+// 최초 1회만 만들어지고 이후 재조정(reconcile)을 건너뛴다.
+const FilledLibrary = memo(function FilledLibrary() {
   return (
     <LibraryScreenChrome totalCount={1000} pageLabel="1 / 200">
       <div style={libStyles.bookGridWrap}>
@@ -1842,7 +1850,7 @@ function FilledLibrary() {
       </div>
     </LibraryScreenChrome>
   );
-}
+});
 
 /** 페이지 스크롤 진행률(0~1)에 1:1 대응하는 비교 컴포넌트 — 마우스/터치 조작이 아닌
  * 상위(EntranceSection/ReaderJourney)에서 전달되는 스크롤 진행률에 따라서만 화면이 바뀐다 */
@@ -2596,7 +2604,7 @@ function ArchiveTransitionSection({ sectionRef }) {
         </div>
         <p className="silock-transition-eyebrow">FROM PHYSICAL ARCHIVE TO DIGITAL LIBRARY</p>
         <h2>
-          대대로 내려온 기록의 가치를
+          대대로 내려온 보존의 가치를
           <br />
           <span>이제 디지털에서도 이어갑니다</span>
         </h2>
