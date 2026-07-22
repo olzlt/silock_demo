@@ -331,6 +331,15 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
   // 쓰기 위한 ref. 이 레이어는 memo로 감싸 최초 1회만 렌더링되고, 이후 스크롤
   // 진행률에 따른 opacity는 아래 스크롤 루프(measure)에서 이 ref로 직접 갱신한다.
   const whiteLayerRef = useRef(null);
+  // 서재 비교(빈 서재 ↔ 꽉 찬 서재)에서 매 프레임 바뀌는 것은 clip-path(채우기)와
+  // sweep line 위치 둘뿐이다. 이 둘을 아래 스크롤 루프에서 ref로 직접 쓰면,
+  // 그 값을 prop으로 받던 무거운 리더기 서브트리(ReaderDevice→LibraryComparison→
+  // 책 그리드)를 memo로 감싸 매 프레임 재조정에서 통째로 뺄 수 있다.
+  const filledMaskRef = useRef(null);
+  const sweepLineRef = useRef(null);
+  // 위 루프가 comparisonProgress를 스스로 계산하려면 comparisonBaseline이 필요한데,
+  // state는 렌더에서만 읽히므로 루프용으로 ref에 미러링한다.
+  const comparisonBaselineRef = useRef(null);
 
   const isMobile = useIsMobile();
 
@@ -409,6 +418,11 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
   } else if (comparisonReady && comparisonBaseline === null) {
     setComparisonBaseline(Math.min(libraryProgress, 1 - COMPARISON_RANGE));
   }
+  // 스크롤 루프가 comparisonProgress를 직접 계산할 때 쓰도록 baseline을 ref에 미러링.
+  // baseline은 부팅 완료 시 한 번만 바뀌므로 한 커밋의 지연은 무의미하다.
+  useEffect(() => {
+    comparisonBaselineRef.current = comparisonBaseline;
+  }, [comparisonBaseline]);
   // 비교(서재 채우기)는 남은 스크롤 전체(baseline~1.0)에 걸쳐 진행되도록 해서,
   // 채우기 완료 = journeyProgress 1.0 = 고정(sticky) 해제 = 다음 섹션 등장이
   // 정확히 같은 지점에서 일어나게 한다. 예전처럼 고정 폭(COMPARISON_RANGE)만 쓰면
@@ -1020,6 +1034,19 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
         const ep = clamp01(p / ENTRANCE_PHASE_END);
         whiteLayerRef.current.style.opacity = String(interpolateKeyframes(ep, KF.whiteOpacity));
       }
+      // 서재 비교 채우기(clip-path)와 sweep line도 여기서 직접 쓴다 — 계산식은 렌더에서
+      // comparisonProgress를 구하던 것과 완전히 동일하다(값 동일성 보장). 이렇게 하면
+      // ReaderDevice/LibraryComparison 서브트리를 memo로 매 프레임 재조정에서 뺄 수 있다.
+      if (filledMaskRef.current || sweepLineRef.current) {
+        const base = comparisonBaselineRef.current;
+        let cp = 0;
+        if (base !== null) {
+          const lp = clamp01((p - ENTRANCE_PHASE_END) / (1 - ENTRANCE_PHASE_END));
+          cp = clamp01((lp - base) / ((1 - base) * (1 - LIBRARY_COMPLETION_DWELL)));
+        }
+        if (filledMaskRef.current) filledMaskRef.current.style.clipPath = `inset(0 ${(1 - cp) * 100}% 0 0)`;
+        if (sweepLineRef.current) sweepLineRef.current.style.left = `${cp * 100}%`;
+      }
       // 진행률이 사실상 그대로면(<0.0005) 렌더를 건너뛴다 — 주소창 토글 등으로
       // 스크롤 이벤트만 튀고 위치는 그대로인 경우의 헛된 재렌더를 막는다.
       setJourneyProgress((prev) => {
@@ -1059,6 +1086,10 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
     setTimeout(() => setShowRipple(false), 650);
     onActivate();
   }, [activated, onActivate]);
+
+  // 부팅 완료 콜백을 안정 참조로 고정한다 — 매 렌더마다 새 화살표 함수를 만들면
+  // 이 콜백을 받는 ReaderDevice의 prop 정체성이 바뀌어 memo가 무력화되기 때문.
+  const handleBootComplete = useCallback(() => setBootDone(true), []);
 
   // 버튼(=로고) 속으로 빨려 들어가듯 지붕·커튼·로고 그룹 전체를 확대하며 지운다
   const gateScale = interpolateKeyframes(entranceProgress, GATE_KF.scale);
@@ -1200,8 +1231,9 @@ return (
                 entranceProgress={entranceProgress}
                 booting={booting}
                 bootDone={bootDone}
-                onBootComplete={() => setBootDone(true)}
-                comparisonProgress={comparisonProgress}
+                onBootComplete={handleBootComplete}
+                filledMaskRef={filledMaskRef}
+                sweepLineRef={sweepLineRef}
                 scrollDirection={scrollDirection}
                 contentReveal={contentReveal}
                 libraryGuideReveal={libraryGuideReveal}
@@ -1480,7 +1512,8 @@ function ReaderJourney({
   booting,
   bootDone,
   onBootComplete,
-  comparisonProgress,
+  filledMaskRef,
+  sweepLineRef,
   scrollDirection,
   contentReveal,
   libraryGuideReveal,
@@ -1594,7 +1627,8 @@ function ReaderJourney({
           booting={booting}
           bootDone={bootDone}
           onBootComplete={onBootComplete}
-          comparisonProgress={comparisonProgress}
+          filledMaskRef={filledMaskRef}
+          sweepLineRef={sweepLineRef}
           width={frameWidth}
           height={frameHeight}
         />
@@ -1872,18 +1906,23 @@ const FilledLibrary = memo(function FilledLibrary() {
 
 /** 페이지 스크롤 진행률(0~1)에 1:1 대응하는 비교 컴포넌트 — 마우스/터치 조작이 아닌
  * 상위(EntranceSection/ReaderJourney)에서 전달되는 스크롤 진행률에 따라서만 화면이 바뀐다 */
-function LibraryComparison({ progress, screenWidth, screenHeight }) {
+// memo: 채우기(clip-path)와 sweep line 위치는 이제 상위 스크롤 루프가 filledMaskRef/
+// sweepLineRef로 직접 쓴다. 그래서 이 컴포넌트에는 매 프레임 바뀌는 prop이 없어
+// (screenWidth/screenHeight는 리더기 프레임 크기라 스크롤 중 고정, ref는 정체성 고정)
+// 최초 1회만 렌더링된다. 초기 스타일은 진행률 0(채우기 완전 클립 = 빈 서재만 보임,
+// sweep line 왼쪽 끝)으로 두어 루프의 첫 쓰기 전에도 올바르게 시작한다.
+const LibraryComparison = memo(function LibraryComparison({ filledMaskRef, sweepLineRef, screenWidth, screenHeight }) {
   return (
     <div style={libStyles.comparisonArea}>
       <EmptyLibrary screenWidth={screenWidth} screenHeight={screenHeight} />
-      <div style={{ ...libStyles.filledMask, clipPath: `inset(0 ${(1 - progress) * 100}% 0 0)` }}>
+      <div ref={filledMaskRef} style={{ ...libStyles.filledMask, clipPath: "inset(0 100% 0 0)" }}>
         <FilledLibrary />
       </div>
       {/* 진행률 확인용 시각 인디케이터 (실제 배포 시 제거 가능) */}
-      <div style={{ ...libStyles.sweepLine, left: `${progress * 100}%` }} />
+      <div ref={sweepLineRef} style={{ ...libStyles.sweepLine, left: "0%" }} />
     </div>
   );
-}
+});
 
 const libStyles = {
   screenBase: { position: "absolute", inset: 0, display: "flex", flexDirection: "column", background: COLOR.white, overflow: "hidden" },
@@ -2128,7 +2167,13 @@ const ctaStyles = {
 // 리더기 크기가 화면에 따라 동적으로 바뀌므로, 테두리 둥글기·안쪽 여백도
 // 크기에 비례해 함께 스케일한다 — 고정값을 쓰면 리더기가 작아졌을 때 여백이
 // 과하게 두꺼워 보이거나, 커졌을 때 상대적으로 너무 얇아 보인다
-function ReaderDevice({ booting, bootDone, onBootComplete, comparisonProgress, width, height }) {
+// memo: 리더기 기기(프레임 크롬 + 서재 비교 화면 + 책 그리드)는 이 랜딩에서 가장
+// 무거운 서브트리다. 매 프레임 바뀌던 유일한 입력(comparisonProgress → clip-path/
+// sweep)을 ref 직접 쓰기로 옮겼으므로, 이제 이 컴포넌트가 받는 prop은 전부 프레임
+// 단위로는 고정(booting/bootDone은 단계 전환 때만, width/height는 안정 높이 기준,
+// 콜백·ref는 정체성 고정)이다. 따라서 부모(ReaderJourney)가 매 프레임 다시 그려져도
+// 이 서브트리 전체는 재조정을 건너뛴다 — 측정에서 확인한 프레임 비용의 핵심을 제거.
+const ReaderDevice = memo(function ReaderDevice({ booting, bootDone, onBootComplete, filledMaskRef, sweepLineRef, width, height }) {
   const radius = clamp(Math.round(height * 0.063), 18, 34);
   const padTop = clamp(Math.round(height * 0.04), 12, 24);
   const padSide = clamp(Math.round(width * 0.048), 10, 20);
@@ -2150,7 +2195,7 @@ function ReaderDevice({ booting, bootDone, onBootComplete, comparisonProgress, w
       <div style={readerStyles.screen}>
         {bootDone ? (
           <div style={readerStyles.powerOnScreen}>
-            <LibraryComparison progress={comparisonProgress} screenWidth={screenWidth} screenHeight={screenHeight} />
+            <LibraryComparison filledMaskRef={filledMaskRef} sweepLineRef={sweepLineRef} screenWidth={screenWidth} screenHeight={screenHeight} />
           </div>
         ) : booting ? (
           <ReaderBootScreen onComplete={onBootComplete} screenWidth={screenWidth} screenHeight={screenHeight} />
@@ -2163,7 +2208,7 @@ function ReaderDevice({ booting, bootDone, onBootComplete, comparisonProgress, w
       <div style={readerStyles.homeButton} />
     </div>
   );
-}
+});
 const readerStyles = {
   frame: {
     border: `2px solid ${COLOR.black}`, background: COLOR.white,
