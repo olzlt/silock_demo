@@ -334,6 +334,12 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
   // 페이지 전환(섹션 교체) 없이 이 값 하나로 카메라 전진 → 리더기 등장 → 리더기
   // 화면 전환까지 모두 이어지도록, 구간별로 이 값을 다시 0~1로 정규화해 쓴다
   const [journeyProgress, setJourneyProgress] = useState(0);
+  // 입구 안내 문구("아래로/위로 스크롤하여…")의 방향 텍스트를 고르기 위한 스크롤
+  // 방향. journeyProgress를 갱신하는 동일한 rAF 콜백 안에서 함께 계산되므로(아래
+  // onScroll의 measure 참고) 별도의 리스너나 렌더링 경로를 추가하지 않는다 —
+  // 이미 프레임당 1회로 스로틀된 갱신에 방향 비교 한 번을 얹는 것뿐이라 스크롤
+  // 성능에 영향이 없다.
+  const [scrollDirection, setScrollDirection] = useState("down");
   // 0 ~ ENTRANCE_PHASE_END 구간(줄 통과 연출) 로컬 진행률
   const entranceProgress = clamp01(journeyProgress / ENTRANCE_PHASE_END);
   // ENTRANCE_PHASE_END ~ 1 구간(리더기 부팅 → 비교 → 가치제안 → CTA) 로컬 진행률
@@ -990,7 +996,14 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
       const p = clamp01(-rect.top / total);
       // 진행률이 사실상 그대로면(<0.0005) 렌더를 건너뛴다 — 주소창 토글 등으로
       // 스크롤 이벤트만 튀고 위치는 그대로인 경우의 헛된 재렌더를 막는다.
-      setJourneyProgress((prev) => (Math.abs(prev - p) < 0.0005 ? prev : p));
+      setJourneyProgress((prev) => {
+        const delta = p - prev;
+        if (Math.abs(delta) < 0.0005) return prev;
+        // 방향이 실제로 바뀔 때만 setState를 호출해 불필요한 재렌더를 추가하지 않는다.
+        const dir = delta > 0 ? "down" : "up";
+        setScrollDirection((prevDir) => (prevDir === dir ? prevDir : dir));
+        return p;
+      });
       // 입구 연출이 끝나고 리더기 구간으로 넘어가는 순간(=같은 화면 안에서)
       // 곧바로 리더기 부팅을 시작한다. (예전에는 "화면을 켜시겠습니까?" 퀘스트창을
       // 먼저 띄웠으나, 랜딩을 다 보는 데 시간이 더 걸린다는 피드백으로 제거했다.)
@@ -1024,6 +1037,7 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
   // 버튼(=로고) 속으로 빨려 들어가듯 지붕·커튼·로고 그룹 전체를 확대하며 지운다
   const gateScale = interpolateKeyframes(entranceProgress, GATE_KF.scale);
   const gateOpacity = interpolateKeyframes(entranceProgress, GATE_KF.opacity);
+  const guideOpacity = interpolateKeyframes(entranceProgress, GUIDE_OPACITY_KF);
 
   useEffect(() => {
     handleActivateRef.current = handleActivate;
@@ -1138,9 +1152,11 @@ return (
             )}
           </div>
 
-          <div ref={guideRef} style={{ ...eStyles.guide, bottom: guideBottom, opacity: gateOpacity }}>
+          <div ref={guideRef} style={{ ...eStyles.guide, bottom: guideBottom, opacity: guideOpacity }}>
             {activated
-              ? "아래로 스크롤하여 서재 안으로 들어가세요"
+              ? scrollDirection === "up"
+                ? "위로 스크롤하여 서재 밖으로 나가세요"
+                : "아래로 스크롤하여 서재 안으로 들어가세요"
               : isMobile
               ? "화면을 터치해 입구를 찾아보세요"
               : "마우스를 움직여 입구를 찾아보세요"}
@@ -1320,6 +1336,13 @@ const GATE_KF = {
   scale: [[0, 1], [0.4, 7], [1, 7]],
   opacity: [[0, 1], [0.4, 1], [0.58, 0], [1, 0]],
 };
+// 안내 문구("아래로 스크롤하여 서재 안으로 들어가세요")는 지붕·커튼·로고 그룹
+// (GATE_KF.opacity, 0.58에서 완전히 사라짐)과 별개로 훨씬 더 늦게까지 보이게
+// 한다 — 카메라가 로고 속으로 다 들어간 뒤(0.58~0.75)에도 안내가 없어 화면이
+// "빈 채로" 스크롤되는 구간이 있었다. 리더기(KF.readerOpacity)가 나타나기
+// 시작하는 0.75 직전(0.75)에 다 사라지도록 맞춰서, 안내 문구와 리더기가
+// 동시에 화면에 떠 있는 시점이 아예 생기지 않게 한다(겹침 방지).
+const GUIDE_OPACITY_KF = [[0, 1], [0.57, 1], [0.75, 0], [1, 0]];
 // 버튼 속으로 다가갈수록(스크롤 진행률↑) 커튼 줄이 11자로(위아래 구분 없이 나란히)
 // 더 크게 벌어지도록 하는 0~1 정규화 계수 — 실제 픽셀 이동량은 maxSpreadPx를 곱해서 구한다
 const CURTAIN_SPREAD_KF = [[0, 0], [0.4, 1], [1, 1]];
