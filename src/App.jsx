@@ -68,6 +68,31 @@ function interpolateKeyframes(progress, keyframes) {
 function clamp01(v) {
   return Math.min(1, Math.max(0, v));
 }
+/**
+ * 저사양 기기 감지(한 번만 계산). 성능이 넉넉한 폰은 여기서 false가 나와 지금까지의
+ * 연출을 100% 그대로 보고, 아주 느린 폰만 true가 되어 "라이트 모드"로 무거운
+ * 이펙트(커튼 물리 반복 횟수·고해상도, 그림자 애니메이션 등)를 덜어낸다.
+ *  - prefers-reduced-motion: 사용자가 OS에서 모션 최소화를 켠 경우
+ *  - deviceMemory <= 3(GB): 저메모리 단말(주로 저가 안드로이드) — Chrome 계열만 노출
+ *  - hardwareConcurrency <= 4(논리 코어): 구형/저가 단말(구형 아이폰 포함)
+ * iOS Safari는 deviceMemory를 노출하지 않으므로 코어 수로 보조 판별한다. 값이 아예
+ * 없으면(측정 불가) 성능이 충분하다고 보고 false로 둔다(좋은 폰을 잘못 깎지 않기 위함).
+ */
+function detectLowPower() {
+  if (typeof navigator === "undefined") return false;
+  if (
+    typeof window !== "undefined" &&
+    window.matchMedia &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  ) {
+    return true;
+  }
+  const mem = navigator.deviceMemory;
+  if (typeof mem === "number" && mem <= 3) return true;
+  const cores = navigator.hardwareConcurrency;
+  if (typeof cores === "number" && cores <= 4) return true;
+  return false;
+}
 /** 반응형 규칙표 기준 breakpoint(640px) 아래를 모바일로 취급 */
 function useIsMobile(breakpoint = 640) {
   const [isMobile, setIsMobile] = useState(() => (typeof window !== "undefined" ? window.innerWidth < breakpoint : false));
@@ -268,7 +293,7 @@ class Constraint {
 // ============================================================
 // EntranceSection : STEP1 + STEP2 (이전 데모 그대로)
 // ============================================================
-function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRef }) {
+function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRef, lowPower = false }) {
   const hostRef = useRef(null);
   const canvasRef = useRef(null);
 
@@ -446,8 +471,14 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
     // ResizeObserver로 직접 관찰해 바로바로 따라가게 한다.
     const target = document.documentElement;
     const update = () => {
-      setViewportHeight(window.innerHeight);
-      setViewportWidth(window.innerWidth);
+      // 주소창이 접히고 펼쳐질 때마다 innerHeight가 몇 px씩 흔들리는데, 그때마다
+      // setState로 전체를 다시 렌더링하면 스크롤 중 버벅임을 키운다. 실제 배치에
+      // 의미 있는 변화(2px 초과)일 때만 갱신한다. 가로폭은 회전/리사이즈에서만
+      // 바뀌므로 조건 없이 반영한다.
+      setViewportHeight((prev) =>
+        Math.abs(prev - window.innerHeight) > 2 ? window.innerHeight : prev
+      );
+      setViewportWidth((prev) => (prev !== window.innerWidth ? window.innerWidth : prev));
     };
     update();
     const ro = new ResizeObserver(update);
@@ -529,7 +560,10 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
       gravity: 0.12,
       damping: 0.97,
       restoreStrength: 0.0005, // 원래 격자 자리로 되돌아가려는 복원력 세기
-      iterationsPerFrame: 4,
+      // 저사양 기기에서는 제약 반복 횟수를 절반으로 줄인다(4→2). 커튼이 아주
+      // 살짝 더 물렁하게 늘어지는 정도의 차이만 있고 글자 배치/개수는 그대로라
+      // 눈에 잘 띄지 않으면서 매 프레임 물리 비용을 크게 덜어낸다.
+      iterationsPerFrame: lowPower ? 2 : 4,
       compressFactor: 0.35,
       stretchFactor: 0.8,
       spacerCompress: 0.5,
@@ -555,7 +589,10 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
     // 캔버스 백킹 스토어와 글자 비트맵을 devicePixelRatio 배율로 렌더링한다.
     // (성능을 위해 2배로 상한.) 그리는 좌표계는 그대로 CSS 픽셀을 쓰되, 매 글자
     // 변환과 글자 비트맵에만 dpr을 반영한다.
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    // 저사양 기기에서는 캔버스 백킹 스토어 배율을 1로 고정한다(고DPI 폰에서 픽셀
+    // 수가 최대 4배 줄어 그리기 비용이 급감). 글자가 아주 약간 덜 또렷해지는 정도의
+    // 차이만 있다. 성능이 넉넉한 기기는 종전대로 최대 2배로 선명하게 렌더링한다.
+    const dpr = lowPower ? 1 : Math.min(2, window.devicePixelRatio || 1);
     const canvas = document.createElement("canvas");
     canvas.width = Math.round(width * dpr);
     canvas.height = Math.round(height * dpr);
@@ -879,6 +916,13 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
     function loop() {
       if (disposed) return;
       rafId = requestAnimationFrame(loop);
+      // 입구 연출이 끝나면(entranceProgress=journeyProgressRef가 1) 커튼을 감싼
+      // 게이트가 opacity 0으로 사라져 화면에 보이지 않는다. 그런데도 매 프레임
+      // 격자 물리(파티클 update + 제약 solve)와 그리기를 계속하면, 저사양 폰에서
+      // 다음 섹션으로 넘어간 뒤에도 CPU를 계속 잡아먹어 스크롤이 버벅인다.
+      // 보이지 않는 동안에는 물리·그리기를 모두 건너뛴다(스크롤을 되올려 커튼이
+      // 다시 보이면 곧바로 재개된다).
+      if (journeyProgressRef.current >= 1) return;
       const spreadAmount = interpolateKeyframes(journeyProgressRef.current, CURTAIN_SPREAD_KF) * maxSpreadPx;
       for (const p of particles) {
         p.homeX = p.baseHomeX + p.spreadDir * spreadAmount;
@@ -904,19 +948,29 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
     };
-  }, [roofHeight, roofWidth, curtainTop, viewportHeight]);
+  }, [roofHeight, roofWidth, curtainTop, viewportHeight, lowPower]);
 
   // 활성화된 뒤에만 스크롤을 관찰한다 — 활성화 전에는 body 스크롤 자체가 잠겨 있다
   useEffect(() => {
     if (!activated) return;
-    function onScroll() {
+    // 저사양 모바일에서 스크롤 이벤트는 화면 갱신(rAF, 보통 60fps)보다 훨씬 자주
+    // 발생하는데, 이벤트마다 곧장 setJourneyProgress를 호출하면 큰 컴포넌트 트리
+    // 전체가 프레임보다 여러 번 다시 렌더링되어 버벅인다. 스크롤 이벤트는 위치만
+    // 기록해 두고, 실제 state 갱신은 프레임당 최대 한 번(rAF)으로 묶는다. 화면에
+    // 보이는 결과는 동일하되 렌더 횟수만 프레임 수만큼으로 줄어든다.
+    let rafId = 0;
+    let ticking = false;
+    function measure() {
+      ticking = false;
       const el = journeyWrapRef.current;
       if (!el) return;
       const total = el.offsetHeight - viewportHeight;
       if (total <= 0) return;
       const rect = el.getBoundingClientRect();
       const p = clamp01(-rect.top / total);
-      setJourneyProgress(p);
+      // 진행률이 사실상 그대로면(<0.0005) 렌더를 건너뛴다 — 주소창 토글 등으로
+      // 스크롤 이벤트만 튀고 위치는 그대로인 경우의 헛된 재렌더를 막는다.
+      setJourneyProgress((prev) => (Math.abs(prev - p) < 0.0005 ? prev : p));
       // 입구 연출이 끝나고 리더기 구간으로 넘어가는 순간(=같은 화면 안에서)
       // 곧바로 리더기 부팅을 시작한다. (예전에는 "화면을 켜시겠습니까?" 퀘스트창을
       // 먼저 띄웠으나, 랜딩을 다 보는 데 시간이 더 걸린다는 피드백으로 제거했다.)
@@ -925,9 +979,17 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
         setBooting(true);
       }
     }
+    function onScroll() {
+      if (ticking) return;
+      ticking = true;
+      rafId = requestAnimationFrame(measure);
+    }
     window.addEventListener("scroll", onScroll, { passive: true });
-    onScroll();
-    return () => window.removeEventListener("scroll", onScroll);
+    measure();
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      cancelAnimationFrame(rafId);
+    };
   }, [activated, viewportHeight]);
 
   const handleActivate = useCallback(() => {
@@ -2289,8 +2351,30 @@ function BrandConceptMotion() {
   const crowd = [28, 34, 30, 38, 32, 36, 27, 33];
   const travelers = [0, 1, 2, 3, 4];
 
+  // 이 블록에는 무한 반복 애니메이션이 여러 개 있고, 그중 일부는 drop-shadow/
+  // box-shadow를 애니메이션해 매 프레임 다시 그리기(repaint)를 유발한다. 화면
+  // 밖에 있는 동안에도 계속 돌면 저사양 폰에서 서재→설명 페이지로 넘어가는
+  // 스크롤이 버벅인다. 뷰포트에 들어와 있을 때만 애니메이션을 재생하고, 벗어나면
+  // 일시정지(animation-play-state: paused)해 그리기 비용을 없앤다.
+  const motionRef = useRef(null);
+  useEffect(() => {
+    const el = motionRef.current;
+    if (!el) return;
+    if (typeof IntersectionObserver === "undefined") {
+      el.classList.add("in-view");
+      return;
+    }
+    const io = new IntersectionObserver(
+      ([entry]) => el.classList.toggle("in-view", entry.isIntersecting),
+      { rootMargin: "200px 0px" } // 완전히 도달하기 직전에 미리 켜 둔다
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
   return (
     <div
+      ref={motionRef}
       className="silock-concept-motion"
       aria-label="소장을 원하는 독자와 창작자가 Silock 플랫폼의 연결 입구를 통과해 각자의 서재로 이어지는 지속 소장 과정"
     >
@@ -2662,6 +2746,8 @@ export default function SilockLibraryDemo() {
   // 이미 참여한 사용자에게 보여주는 안내 모달의 표시 여부. surveyCompleted(영구
   // 저장되는 참여 기록)와 분리해, 랜딩 페이지 자체는 항상 정상적으로 노출한다.
   const [showParticipatedNotice, setShowParticipatedNotice] = useState(false);
+  // 저사양 기기 여부는 기기 특성이라 세션 내내 바뀌지 않으므로 최초 1회만 계산한다.
+  const [lowPower] = useState(detectLowPower);
   const ctaRef = useRef(null);
   const storyRef = useRef(null);
 
@@ -2711,7 +2797,7 @@ export default function SilockLibraryDemo() {
 
   return (
     <div
-      className="silock-app"
+      className={lowPower ? "silock-app silock-lite" : "silock-app"}
       style={{
         fontFamily: "'Noto Sans KR', -apple-system, sans-serif",
         wordBreak: "keep-all",
@@ -2949,6 +3035,13 @@ export default function SilockLibraryDemo() {
             linear-gradient(145deg, #ffffff 0%, #faf8f5 100%);
           box-shadow: 0 28px 80px rgba(17,17,17,0.06);
           overflow: hidden;
+        }
+        /* 화면 밖(.in-view 없음)일 때는 내부 무한 애니메이션을 모두 멈춘다 —
+           보이지 않는 동안의 repaint 비용을 없애 저사양 폰의 스크롤 버벅임을 줄인다.
+           in-view가 되면 이어서 재생된다(처음부터 다시 시작하지 않음). */
+        .silock-concept-motion:not(.in-view),
+        .silock-concept-motion:not(.in-view) * {
+          animation-play-state: paused !important;
         }
         .silock-concept-motion::before {
           content: "ARCHIVE FLOW 01";
@@ -3420,6 +3513,25 @@ export default function SilockLibraryDemo() {
             text-align: center;
           }
         }
+        /* ── 저사양 기기 라이트 모드 ──────────────────────────────
+           .silock-lite는 detectLowPower()가 true인 아주 느린 기기에만 붙는다.
+           GPU 합성으로 처리되는 transform/opacity 모션은 그대로 두고, 매 프레임
+           다시 그리기(repaint)를 강제하는 무거운 요소 — 움직이는 요소에 걸린
+           drop-shadow 필터, box-shadow를 애니메이션하는 게이트 펄스, blur 글로우,
+           물결(ripple) — 만 덜어낸다. 성능이 넉넉한 폰은 이 클래스가 없어 100%
+           동일하게 보인다. */
+        .silock-lite .silock-concept-motion :is(
+          .silock-symbol-person,
+          .silock-symbol-traveler,
+          .silock-archive-gate,
+          .silock-transition-symbol
+        ) {
+          filter: none !important;
+        }
+        .silock-lite .silock-crowd-glow { animation: none !important; }
+        .silock-lite .silock-archive-gate { animation: none !important; }
+        .silock-lite .silock-gate-ripple { display: none !important; }
+
         @media (prefers-reduced-motion: reduce) {
           * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
         }
@@ -3430,6 +3542,7 @@ export default function SilockLibraryDemo() {
         onSurveyOpen={handleSurveyOpen}
         onExplore={handleExplore}
         ctaRef={ctaRef}
+        lowPower={lowPower}
       />
       <StorySections sectionRef={storyRef} onSurveyOpen={handleSurveyOpen} />
       <SurveyModal
