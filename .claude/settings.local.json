@@ -28,7 +28,8 @@
       "Bash(node optimize.js)",
       "Bash(echo \"EXIT: $?\")",
       "Bash(npm run *)",
-      "Bash(cd \"C:/Users/LeeJieun/Desktop/study/coding_codeit/landing/codeset/silock_demo\" && npx eslint src/App.jsx 2>&1 | tail -8 && echo \"=== BUILD ===\" && npm run build 2>&1 | tail -3 && rm -f /tmp/reader_test.mjs)"
+      "Bash(cd \"C:/Users/LeeJieun/Desktop/study/coding_codeit/landing/codeset/silock_demo\" && npx eslint src/App.jsx 2>&1 | tail -8 && echo \"=== BUILD ===\" && npm run build 2>&1 | tail -3 && rm -f /tmp/reader_test.mjs)",
+      "Bash(rm -f \"C:/Users/LeeJieun/Desktop/study/coding_codeit/landing/codeset/silock_demo/public/headline_harness.html\")"
     ]
   }
 }

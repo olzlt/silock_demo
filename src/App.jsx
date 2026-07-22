@@ -2346,9 +2346,9 @@ const BRAND_VALUES = [
   {
     number: "02",
     title: "안심 구매",
-    description: "독자는 구매한 작품이 사라질 걱정을 덜고 콘텐츠를 안심하고 소장할 수 있습니다",
+    description: "구매한 작품이 사라질 걱정을 덜고 콘텐츠를 안심하고 소장할 수 있습니다",
     descriptionSegments: [
-      ["독자는 구매한 작품이 사라질 걱정을 덜고", "콘텐츠를 안심하고 소장할 수 있습니다"],
+      ["구매한 작품이 사라질 걱정을 덜고", "콘텐츠를 안심하고 소장할 수 있습니다"],
     ],
   },
   {
@@ -2376,15 +2376,15 @@ const FAQ_ITEMS = [
     answer: "아니요 지속 소장은 Silock 내의 콘텐츠에만 적용됩니다 다른 플랫폼의 구매 내역이나 콘텐츠를 가져와 보관하는 서비스는 아닙니다",
     answerSegments: [
       ["아니오"],
-      ["지속 소장은 Silock 내의 콘텐츠에만 적용됩니다"],
+      ["지속 소장은 Silock에서 구매하신", "디지털 콘텐츠에만 적용됩니다"],
       ["다른 플랫폼의 구매 내역이나 콘텐츠를", "가져와 보관하는 서비스는 아닙니다"],
     ],
   },
   {
     question: "어떤 콘텐츠를 지원하나요?",
-    answer: "웹툰, 웹소설, 전자책 등 글과 그림으로 이루어진 디지털 창작물을 지원할 예정입니다",
+    answer: "웹툰, 웹소설, 전자책 등 글·그림으로 구성된 디지털 창작물을 지원할 예정입니다",
     answerSegments: [
-      ["웹툰, 웹소설, 전자책 등", "글과 그림으로 이루어진"],
+      ["웹툰, 웹소설, 전자책 등", "글·그림으로 구성된"],
       ["다양한 디지털 창작물을 지원할 예정입니다"],
     ],
   },
@@ -2559,7 +2559,10 @@ function BrandStorySection() {
         <h2 style={storyStyles.displayTitle}>
           Silock에서 구매하고
           <br />
-          <span style={storyStyles.orangeText}>나의 서재에 오래 소장</span>
+          <span style={storyStyles.orangeText}>
+            <span className="silock-copy-segment">나의 서재에</span>{" "}
+            <span className="silock-copy-segment">오래 소장</span>
+          </span>
         </h2>
         <p style={storyStyles.lead}>
           <span className="silock-copy-segment">사람을 닮은 심볼은</span>{" "}
@@ -3387,15 +3390,34 @@ export default function SilockLibraryDemo() {
         }
         .silock-motion-caption strong { color: ${COLOR.black}; font-size: clamp(14px, 1.8vw, 18px); }
         .silock-motion-caption span { margin-top: 6px; color: #777; font-size: clamp(10px, 1.1vw, 12px); line-height: 1.5; }
+        /* repeat(3, minmax(0,1fr))는 트랙 자체는 안 넘치지만, 카드 안의 문구
+           (.silock-copy-segment, white-space:nowrap 한 단어 뭉치)는 트랙이 좁아져도
+           줄바꿈되지 않는다 — 실측 결과 가장 긴 문구가 235px, 카드 좌우 패딩
+           56px(28px×2)을 더하면 최소 293px가 있어야 안 잘린다. 761~960px처럼
+           "모바일 전용 1열" 구간(<=760px)보다는 넓지만 3열이 들어가기엔 좁은 폭에서
+           고정 3열을 쓰면 각 카드가 293px보다 좁아져 문구가 카드 박스를 넘어간다.
+           auto-fit으로 바꾸면 칼럼이 이 최소 폭(여유를 둔 310px)보다 좁아지기 전에
+           스스로 3→2→1열로 줄어들어, 어떤 폭에서도 카드 안 문구가 넘치지 않는다. */
         .silock-value-grid {
           display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
+          grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
           gap: 18px;
         }
         .silock-faq-layout {
           display: grid;
           grid-template-columns: minmax(260px, 0.8fr) minmax(420px, 1.2fr);
           gap: clamp(56px, 9vw, 130px);
+        }
+        /* 위 2열 그리드는 각 트랙의 최소값(260px+420px)과 최소 간격(56px)을 더한
+           736px보다 콘텐츠 폭이 좁아지면 그리드 자체가 넘친다. 섹션에 overflow:hidden이
+           걸려 있어(storyStyles.section), 넘친 만큼 오른쪽이 그대로 잘려나가고 —
+           하필 각 질문 우측 끝의 "+" 아이콘이 바로 그 잘리는 자리라 아이콘이 반만
+           보이는 형태로 나타난다. 아래(<=760px)의 "완전히 모바일" 전용 스택 규칙과는
+           별개로, 2열이 실제로 들어갈 수 있는 폭(약 800px)에 도달하기 전까지는 먼저
+           1열로 유지해 겹침 구간을 없앤다. */
+        @media (max-width: 860px) {
+          .silock-faq-layout { grid-template-columns: 1fr; gap: 52px; }
+          .silock-faq-layout > div:first-child { position: static !important; }
         }
         .silock-faq-item { border-bottom: 1px solid ${COLOR.neutralGray}; }
         .silock-faq-item summary {
@@ -3562,6 +3584,28 @@ export default function SilockLibraryDemo() {
           .silock-faq-item summary { min-height: 74px; padding: 20px 2px; }
           .silock-faq-item p { margin: -2px 34px 24px 2px; }
           .silock-faq-question { grid-template-columns: 28px minmax(0, 1fr); gap: 8px; }
+        }
+        /* 위 760px 이하 규칙은 값이 고정 px라 "화면 폭에 반응해 움직이지" 않는다 —
+           760px 폰과 320px 폰이 똑같은 크기의 아이콘 박스·캡션을 받는다. 폭이
+           넉넉한 폰(대략 400px~)에서는 이 값이 여유 있게 맞지만, 그보다 좁은 폰
+           (iPhone SE·구형 안드로이드 등 320~390px대)에서는 게이트 박스가 서재
+           박스를 덮거나("그림끼리 겹치거나") 캡션 문구 3개가 서로 겹쳐 읽을 수 없는
+           지점까지 온다(실측: 320px에서 게이트·서재 박스 3px, "소장을 원하는
+           사람들"·"Silock에서 구매" 캡션 26px 겹침). 그래서 좁은 폰 전용으로 한 단계
+           더 작은 값을 추가한다 — 아이콘 박스 사이·캡션 사이에 항상 최소 10px 이상
+           여백이 남도록 실측 기반으로 계산한 값이다.
+           (참고: 이 값들도 760px 폭까지는 고정이지만, 400px 경계 바로 위(401px~)부터는
+           위 760px 블록의 원래 값이 이미 여유 있게 맞는다는 것을 실측으로 확인했다.) */
+        @media (max-width: 400px) {
+          .silock-motion-stage {
+            --platform-size: 56px;
+            --library-width: 62px;
+            --library-right: 0px;
+            --journey-start: 64px;
+            --crowd-left: -6px;
+            --crowd-width: 84px;
+          }
+          .silock-motion-caption-platform { width: 27%; }
         }
 
         /* 반응형 규칙표: 서재 배경 — 데스크톱 전체 노출 / 모바일 중앙부 중심 크롭 */
