@@ -311,6 +311,16 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
   const [viewportWidth, setViewportWidth] = useState(
     () => (typeof window !== "undefined" ? window.innerWidth : 1280)
   );
+  // 리더기(꽉 찬 서재) 크기 계산 전용의 "흔들리지 않는" 화면 높이.
+  // 모바일에서 아래로 스크롤하면 주소창이 접혔다 펼쳐지며 innerHeight가 수십 px씩
+  // 오르내리는데, 리더기 크기를 live viewportHeight로 계산하면 그때마다 리더기가
+  // 작아졌다 커졌다 반복한다(사용자 리포트). 그래서 리더기 크기에는 "지금까지 본
+  // 가장 큰(=주소창이 접힌 상태의) 높이"를 쓴다. 한 번 커지면 다시 줄지 않아
+  // 스크롤 중 크기가 고정된다. 가로폭이 바뀌는 실제 회전/리사이즈에서만 재보정한다.
+  const [stableViewportHeight, setStableViewportHeight] = useState(
+    () => (typeof window !== "undefined" ? window.innerHeight : 800)
+  );
+  const lastWidthRef = useRef(typeof window !== "undefined" ? window.innerWidth : 1280);
 
   const entranceLogoRef = useRef(null);
   const handleActivateRef = useRef(null);
@@ -475,10 +485,20 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
       // setState로 전체를 다시 렌더링하면 스크롤 중 버벅임을 키운다. 실제 배치에
       // 의미 있는 변화(2px 초과)일 때만 갱신한다. 가로폭은 회전/리사이즈에서만
       // 바뀌므로 조건 없이 반영한다.
-      setViewportHeight((prev) =>
-        Math.abs(prev - window.innerHeight) > 2 ? window.innerHeight : prev
-      );
-      setViewportWidth((prev) => (prev !== window.innerWidth ? window.innerWidth : prev));
+      const h = window.innerHeight;
+      const w = window.innerWidth;
+      setViewportHeight((prev) => (Math.abs(prev - h) > 2 ? h : prev));
+      setViewportWidth((prev) => (prev !== w ? w : prev));
+      // 리더기 크기용 안정 높이: 가로폭이 바뀌면(회전/리사이즈) 그 시점 높이로
+      // 재보정하고, 그 외에는 주소창이 접힌 최대 높이까지만 키운다(줄이지 않는다).
+      // 이렇게 하면 스크롤 중 주소창 토글로 innerHeight가 오르내려도 리더기 크기는
+      // 한 번 정해진 뒤 흔들리지 않는다.
+      if (w !== lastWidthRef.current) {
+        lastWidthRef.current = w;
+        setStableViewportHeight(h);
+      } else {
+        setStableViewportHeight((prev) => (h > prev ? h : prev));
+      }
     };
     update();
     const ro = new ResizeObserver(update);
@@ -1147,6 +1167,10 @@ return (
                 // 리더기·안내 문구·CTA의 중간 지점 계산이 정확하게 유지된다.
                 viewportHeight={viewportHeight}
                 viewportWidth={viewportWidth}
+                // 리더기 "크기" 계산에는 흔들리지 않는 안정 높이를 쓴다(위치·간격은
+                // 위 live viewportHeight 그대로). 모바일 스크롤 중 주소창 토글로
+                // 리더기가 커졌다 작아졌다 하는 것을 막는다.
+                stableViewportHeight={stableViewportHeight}
               />
             </>
           )}
@@ -1391,6 +1415,7 @@ function ReaderJourney({
   isMobile,
   viewportHeight,
   viewportWidth,
+  stableViewportHeight,
 }) {
   const opacity = interpolateKeyframes(entranceProgress, KF.readerOpacity);
   const translateY = interpolateKeyframes(entranceProgress, KF.readerTranslateY);
@@ -1399,9 +1424,15 @@ function ReaderJourney({
   // 위/아래 텍스트 영역은 리더기 높이를 기준으로 "리더기로부터 고정 간격"에만
   // 배치한다 — 같은 flex 그룹으로 묶어 함께 가운데 정렬하면 콘텐츠 유무에 따라
   // 전체 그룹 높이가 바뀌면서 리더기까지 밀려 움직이기 때문이다
+  // 리더기 "크기"는 모바일에서만 안정 높이(주소창 토글에 흔들리지 않는 최대 높이)로
+  // 계산한다 — 주소창이 접혔다 펴지며 리더기가 커졌다 작아졌다 하는 것을 막기 위함.
+  // 데스크톱은 주소창이 없어 이 문제가 없으므로 종전대로 live viewportHeight를 써서
+  // 창 높이에 맞는 반응형 크기를 그대로 유지한다. 리더기 "위치"·주변 문구 간격은
+  // 모바일에서도 아래에서 계속 live viewportHeight를 쓰므로 화면에 맞는 배치는 유지된다.
+  const sizingHeight = isMobile ? (stableViewportHeight ?? viewportHeight) : viewportHeight;
   const { width: frameWidth, height: frameHeight } = computeReaderFrameSize(
     viewportWidth,
-    viewportHeight,
+    sizingHeight,
     isMobile
   );
   // 리더기를 화면 전체의 정중앙에 두되, 화면이 낮아 위쪽 헤드라인이나 아래쪽
