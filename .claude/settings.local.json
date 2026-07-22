@@ -32,7 +32,8 @@
       "Bash(rm -f \"C:/Users/LeeJieun/Desktop/study/coding_codeit/landing/codeset/silock_demo/public/headline_harness.html\")",
       "Bash(cat)",
       "Bash(node /tmp/overlap_check.mjs)",
-      "Bash(rm -f /tmp/overlap_check.mjs)"
+      "Bash(rm -f /tmp/overlap_check.mjs)",
+      "Bash(python3 -c ' *)"
     ]
   }
 }

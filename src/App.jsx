@@ -1371,7 +1371,6 @@ const KF = {
   libraryOpacity: [[0, 0], [0.55, 0], [0.7, 1], [1, 1]],
   libraryBlur: [[0.6, 12], [0.8, 4], [1, 0]],
   readerOpacity: [[0, 0], [0.75, 0], [0.9, 1], [1, 1]],
-  readerTranslateY: [[0, 40], [0.8, 40], [1, 0]],
 };
 
 function WhiteTransitionLayer({ progress }) {
@@ -1476,7 +1475,17 @@ function ReaderJourney({
   stableViewportHeight,
 }) {
   const opacity = interpolateKeyframes(entranceProgress, KF.readerOpacity);
-  const translateY = interpolateKeyframes(entranceProgress, KF.readerTranslateY);
+  // 리더기는 아래에서 위로 "떠오르며" 등장하지 않고, 제자리(readerCenterY 등, 이미
+  // 안정 높이로 고정된 최종 위치)에서 오직 opacity로만 서서히 나타난다. 예전에는
+  // translateY를 0.8~1 구간에서 40px→0으로 보간해 "떠오르는" 효과를 냈는데, 이
+  // 오프셋이 entranceProgress(=실시간 스크롤 위치를 live viewportHeight로 나눠 구한
+  // 값, EntranceSection의 measure() 참고)에서 바로 유도되다 보니, 모바일에서
+  // 스크롤 중 주소창이 나타났다 사라지며 viewportHeight가 흔들릴 때마다 entranceProgress
+  // 자체가 미세하게 들쭉날쭉해지고, 그만큼 translateY도 함께 흔들렸다. 리더기의
+  // "기준 위치"는 이미 stableViewportHeight로 고정해 뒀지만 그 위에 얹힌 이
+  // translateY 오프셋만은 안정화되지 않아서, 리더기·헤드라인·안내 문구가 함께
+  // 미세하게 튀며 서로 겹쳐 보이는 원인이 됐다. 오프셋 자체를 없애 버리면 이 흔들림이
+  // 발생할 여지가 아예 사라진다.
   // 헤드라인(위)이나 안내 문구/가치 설명/CTA(아래)가 나타나거나 사라져도 리더기
   // 자체의 위치는 절대 흔들리지 않도록, 리더기는 화면 중앙에 독립적으로 고정하고
   // 위/아래 텍스트 영역은 리더기 높이를 기준으로 "리더기로부터 고정 간격"에만
@@ -1548,7 +1557,7 @@ function ReaderJourney({
           position: "absolute",
           top: (readerCenterY - frameHeight / 2) / 2,
           left: "50%",
-          transform: `translate(-50%, -50%) translateY(${translateY}px)`,
+          transform: "translate(-50%, -50%)",
           width: `min(${headlineWidth}px, 92vw)`,
         }}
       >
@@ -1559,7 +1568,7 @@ function ReaderJourney({
           position: "absolute",
           top: readerCenterY,
           left: "50%",
-          transform: `translate(-50%, -50%) translateY(${translateY}px)`,
+          transform: "translate(-50%, -50%)",
         }}
       >
         <ReaderDevice
@@ -1576,7 +1585,7 @@ function ReaderJourney({
           position: "absolute",
           top: ctaGuideCenterY,
           left: "50%",
-          transform: `translate(-50%, -50%) translateY(${translateY}px)`,
+          transform: "translate(-50%, -50%)",
           width: `min(${guideWidth}px, 90vw)`,
           display: "grid",
         }}
@@ -1590,7 +1599,7 @@ function ReaderJourney({
           position: "absolute",
           top: ctaCenterY,
           left: "50%",
-          transform: `translate(-50%, -50%) translateY(${translateY}px)`,
+          transform: "translate(-50%, -50%)",
         }}
       >
         <SurveyCTA
