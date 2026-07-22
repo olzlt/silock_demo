@@ -1149,7 +1149,11 @@ return (
           {activated && (
             <>
               <WhiteTransitionLayer progress={entranceProgress} />
-              <LibraryBackdrop progress={entranceProgress} />
+              <LibraryBackdrop
+                progress={entranceProgress}
+                isMobile={isMobile}
+                stableViewportHeight={stableViewportHeight}
+              />
               <ReaderJourney
                 entranceProgress={entranceProgress}
                 booting={booting}
@@ -1331,15 +1335,25 @@ const KF = {
 function WhiteTransitionLayer({ progress }) {
   return <div style={{ position: "absolute", inset: 0, background: COLOR.white, opacity: interpolateKeyframes(progress, KF.whiteOpacity), pointerEvents: "none" }} />;
 }
-function LibraryBackdrop({ progress }) {
+function LibraryBackdrop({ progress, isMobile, stableViewportHeight }) {
   const opacity = interpolateKeyframes(progress, KF.libraryOpacity);
   const blur = interpolateKeyframes(progress, KF.libraryBlur);
+  // 배경 사진은 고정(sticky) 컨테이너(100dvh)를 inset:0으로 채운다. 모바일에서
+  // 주소창(검색창)이 나타났다 사라지며 그 컨테이너 높이가 바뀌면, background-size:
+  // cover가 매번 이미지를 다시 맞춰(줌/이동) 배경이 움찔거린다. 그래서 모바일에서는
+  // 배경 상자 자체의 높이를 "흔들리지 않는 높이"(주소창 접힌 최대 높이)로 고정하고
+  // 상단에 앵커한다 — 주소창이 나타나 컨테이너가 짧아지면 배경 아래쪽이 살짝
+  // 가려질 뿐(overflow:hidden), 이미지 프레이밍(cover 기준 크기)은 그대로여서
+  // 배경이 확대·이동하지 않는다. 데스크톱은 주소창이 없어 종전대로 inset:0.
+  const box =
+    isMobile && stableViewportHeight
+      ? { position: "absolute", top: 0, left: 0, right: 0, height: stableViewportHeight }
+      : { position: "absolute", inset: 0 };
   return (
     <div
       className="silock-library-bg"
       style={{
-        position: "absolute",
-        inset: 0,
+        ...box,
         opacity,
         filter: `blur(${blur}px)`,
         backgroundImage: `linear-gradient(180deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.3) 35%, rgba(255,255,255,0.6) 100%), url(${libraryBGImg})`,
