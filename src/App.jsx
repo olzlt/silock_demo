@@ -433,7 +433,20 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
     : 0;
   // 좌우 비교 안내("아래로 스크롤하여…")는 완성 콘텐츠가 나타나는 만큼 반대로
   // 사라진다(교차 페이드).
-  const libraryGuideReveal = bootDone ? 1 - contentReveal : 0;
+  // bootDone은 최초 1회 부팅된 뒤로는 영원히 true로 남는다(재방문 시 로딩 화면을
+  // 다시 재생하지 않기 위한 의도적 설계 — 좋은 동작이다). 문제는 이 안내가
+  // bootDone 하나에만 의존해서, "지금 실제로 리더기 화면 근처에 있는지"와 무관하게
+  // 항상 보이려 든다는 것이다. 첫 방문에서는 우연히 문제가 없었다 — 부팅이 끝나기
+  // 전(entranceProgress가 0.75→1로 올라가는 구간)에는 bootDone이 아직 false였기
+  // 때문이다. 하지만 입구로 되돌아갔다가 다시 스크롤해 내려오는 "재방문"에서는
+  // bootDone이 이미 true인 채로 같은 0.75→1 구간을 다시 지나가므로, 이 안내가
+  // 리더기가 채 자리잡기도 전부터 나타나 입구의 안내 문구("아래로/위로
+  // 스크롤하여…")와 겹쳐 보인다. entranceProgress가 완전히 1에 도달해(=입구 안내가
+  // GUIDE_OPACITY_KF에 따라 완전히 사라진 시점과 정확히 같은 지점) "리더기가
+  // 실제로 자리잡은 뒤"라는 조건을 추가로 걸어, 첫 방문·재방문·역스크롤 모두에서
+  // 두 안내가 겹치는 순간이 생기지 않게 한다.
+  const readerFullySettled = entranceProgress >= 1;
+  const libraryGuideReveal = bootDone && readerFullySettled ? 1 - contentReveal : 0;
   // 버튼·화살표가 클릭 가능해지는 시점 — 완성 콘텐츠가 (거의) 완전히 드러난 뒤.
   // contentReveal 기준으로 맞춰, "다 보이는데 아직 클릭 안 되는" 틈이 없게 한다.
   const showCTA = contentReveal >= 0.999;
