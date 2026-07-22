@@ -327,6 +327,10 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
   const handleActivateRef = useRef(null);
   const guideRef = useRef(null);
   const journeyWrapRef = useRef(null);
+  // 매 프레임 바뀌는 흰색 전환 레이어의 투명도를 React 재렌더링 없이 DOM에 직접
+  // 쓰기 위한 ref. 이 레이어는 memo로 감싸 최초 1회만 렌더링되고, 이후 스크롤
+  // 진행률에 따른 opacity는 아래 스크롤 루프(measure)에서 이 ref로 직접 갱신한다.
+  const whiteLayerRef = useRef(null);
 
   const isMobile = useIsMobile();
 
@@ -1008,6 +1012,14 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
       if (total <= 0) return;
       const rect = el.getBoundingClientRect();
       const p = clamp01(-rect.top / total);
+      // 흰색 전환 레이어 투명도는 React 재렌더링을 거치지 않고 여기서 DOM에 직접
+      // 쓴다(값 계산식은 종전 렌더에서 쓰던 것과 동일 — interpolateKeyframes로
+      // 결과가 완전히 같다). memo된 레이어는 다시 렌더링되지 않으므로 이 ref 쓰기가
+      // 유일한 갱신 경로다.
+      if (whiteLayerRef.current) {
+        const ep = clamp01(p / ENTRANCE_PHASE_END);
+        whiteLayerRef.current.style.opacity = String(interpolateKeyframes(ep, KF.whiteOpacity));
+      }
       // 진행률이 사실상 그대로면(<0.0005) 렌더를 건너뛴다 — 주소창 토글 등으로
       // 스크롤 이벤트만 튀고 위치는 그대로인 경우의 헛된 재렌더를 막는다.
       setJourneyProgress((prev) => {
@@ -1178,7 +1190,7 @@ return (
 
           {activated && (
             <>
-              <WhiteTransitionLayer progress={entranceProgress} />
+              <WhiteTransitionLayer whiteLayerRef={whiteLayerRef} />
               <LibraryBackdrop
                 progress={entranceProgress}
                 isMobile={isMobile}
@@ -1374,9 +1386,15 @@ const KF = {
   readerOpacity: [[0, 0], [0.75, 0], [0.9, 1], [1, 1]],
 };
 
-function WhiteTransitionLayer({ progress }) {
-  return <div style={{ position: "absolute", inset: 0, background: COLOR.white, opacity: interpolateKeyframes(progress, KF.whiteOpacity), pointerEvents: "none" }} />;
-}
+// memo: 스크롤 진행률에 따라 바뀌는 것은 opacity 하나뿐인데, 그 값은 이제 상위의
+// 스크롤 루프가 whiteLayerRef로 직접 쓴다. 그래서 이 컴포넌트에는 매 프레임 바뀌는
+// prop이 없어(전달받는 ref는 정체성이 고정) 최초 1회만 렌더링되고, 이후 모든
+// 프레임에서 React 재조정을 건너뛴다. 초기 opacity는 0(entranceProgress=0에서
+// whiteOpacity가 0)으로 두어 마운트 첫 프레임의 깜빡임을 막는다. React가 이후
+// 재렌더링하지 않으므로 이 초기값이 imperative 쓰기를 덮어쓰는 일도 없다.
+const WhiteTransitionLayer = memo(function WhiteTransitionLayer({ whiteLayerRef }) {
+  return <div ref={whiteLayerRef} style={{ position: "absolute", inset: 0, background: COLOR.white, opacity: 0, pointerEvents: "none" }} />;
+});
 function LibraryBackdrop({ progress, isMobile, stableViewportHeight }) {
   const opacity = interpolateKeyframes(progress, KF.libraryOpacity);
   const blur = interpolateKeyframes(progress, KF.libraryBlur);
