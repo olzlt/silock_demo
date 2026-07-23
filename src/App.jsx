@@ -3513,6 +3513,13 @@ export default function SilockLibraryDemo() {
           justify-content: center;
           z-index: 3;
           transform: translate(-50%, -50%);
+          /* 통과하는 주황 심볼은 rail(will-change:transform)이라 GPU 레이어로 올라가
+             device-pixel 그리드에 스냅된다. 게이트(검은 열쇠구멍)는 기본적으로 메인
+             레이어에 서브픽셀 안티에일리어싱으로 그려져서, 같은 좌표(50%)라도 둘의
+             래스터화 경로가 달라 멈춘 순간에도 주황이 ~1px 왼쪽으로 어긋나 보였다.
+             게이트도 같은 방식으로 합성 레이어에 올려(will-change) 동일한 픽셀 그리드에
+             스냅되게 하면 둘이 정확히 겹친다. */
+          will-change: transform;
           box-shadow: 0 20px 44px rgba(17,17,17,0.1);
         }
         /* 게이트의 주황 글로우 펄스: 예전엔 box-shadow를 애니메이션해 매 프레임 다시
