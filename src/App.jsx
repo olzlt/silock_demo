@@ -3288,7 +3288,9 @@ export default function SilockLibraryDemo() {
            보이지 않는 동안의 repaint 비용을 없애 저사양 폰의 스크롤 버벅임을 줄인다.
            in-view가 되면 이어서 재생된다(처음부터 다시 시작하지 않음). */
         .silock-concept-motion:not(.in-view),
-        .silock-concept-motion:not(.in-view) * {
+        .silock-concept-motion:not(.in-view) *,
+        .silock-concept-motion:not(.in-view) *::before,
+        .silock-concept-motion:not(.in-view) *::after {
           animation-play-state: paused !important;
         }
         .silock-concept-motion::before {
@@ -3485,7 +3487,25 @@ export default function SilockLibraryDemo() {
           z-index: 3;
           transform: translate(-50%, -50%);
           box-shadow: 0 20px 44px rgba(17,17,17,0.1);
-          animation: archive-gate-pulse 920ms ease-in-out infinite;
+        }
+        /* 게이트의 주황 글로우 펄스: 예전엔 box-shadow를 애니메이션해 매 프레임 다시
+           칠했다(페인트). 대신 글로우(0 0 28px)를 가진 정적 ::after를 두고 그 opacity만
+           애니메이션한다 → GPU 합성. outset box-shadow는 요소 박스 바깥에만 그려지므로
+           halo 위치·모양이 예전과 정확히 같다(내부 번짐 없음). 기본 진한 그림자는
+           게이트에 정적으로 남겨 그대로 유지. */
+        .silock-archive-gate::after {
+          content: "";
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          box-shadow: 0 0 28px rgba(255,106,0,0.4);
+          opacity: 0;
+          pointer-events: none;
+          animation: gate-glow-pulse 920ms ease-in-out infinite;
+        }
+        @keyframes gate-glow-pulse {
+          0%, 58%, 100% { opacity: 0; }
+          76% { opacity: 1; }
         }
         .silock-gate-hole {
           width: var(--person-size);
@@ -3509,10 +3529,6 @@ export default function SilockLibraryDemo() {
           font-weight: 900;
           letter-spacing: 0.14em;
           transform: translateX(-50%);
-        }
-        @keyframes archive-gate-pulse {
-          0%, 58%, 100% { box-shadow: 0 20px 44px rgba(17,17,17,0.1); }
-          76% { box-shadow: 0 20px 44px rgba(17,17,17,0.1), 0 0 28px rgba(255,106,0,0.4); }
         }
         @keyframes gate-unlock-ripple {
           0%, 62% { opacity: 0; transform: scale(1); }
@@ -3841,7 +3857,7 @@ export default function SilockLibraryDemo() {
           filter: none !important;
         }
         .silock-lite .silock-crowd-glow { animation: none !important; }
-        .silock-lite .silock-archive-gate { animation: none !important; }
+        .silock-lite .silock-archive-gate::after { animation: none !important; }
         .silock-lite .silock-gate-ripple { display: none !important; }
 
         @media (prefers-reduced-motion: reduce) {
