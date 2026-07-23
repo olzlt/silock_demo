@@ -1,4 +1,5 @@
 import roofImg from "./assets/roof.webp";
+import roofImgSmall from "./assets/roof-1400.webp"; // 반응형: 모바일·비레티나용 축소본(동일 비율)
 import entranceLogoImg from "./assets/logo_main_org.webp";
 import blackLogoImg from "./assets/logo_main_black.webp";
 import libraryBGImg from "./assets/library.webp"
@@ -1145,9 +1146,16 @@ return (
               <img
                 ref={roofRef}
                 src={roofImg}
+                // 반응형 이미지: 브라우저가 화면 크기·픽셀밀도에 맞는 소스를 고른다.
+                //  - 모바일/비레티나 데스크톱 → 1400px(185KB) 다운로드
+                //  - 데스크톱 레티나(1100px×2배=2200px 필요) → 원본 2200px(418KB)
+                // 두 변형은 비율이 같고, 각 기기가 필요한 해상도 이상을 받으므로
+                // 어디서도 흐려지지 않는다 = 화질 손실 0, 용량만 절감.
+                srcSet={`${roofImgSmall} 1400w, ${roofImg} 2200w`}
+                sizes="(max-width: 1100px) 100vw, 1100px"
                 alt="Silock 입구"
                 // 지붕은 첫 화면의 히어로 이미지다 — 브라우저가 다른 리소스보다
-                // 먼저 받도록 우선순위만 올린다(이미지 바이트·화질은 그대로, 100% 안전).
+                // 먼저 받도록 우선순위만 올린다.
                 fetchPriority="high"
                 onLoad={handleRoofLoad}
                 style={{
