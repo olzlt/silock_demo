@@ -2632,12 +2632,23 @@ function BrandConceptMotion() {
 
         <div className="silock-traveler-lane">
           {travelers.map((traveler) => (
+            // 레일(전체폭)이 수평 이동을 transform: translateX로 담당하고, 그 안의 사람은
+            // 세로 흔들림·크기·투명도만 담당한다. 둘은 같은 지속시간·이징·지연으로
+            // 동기화된다. 예전엔 사람이 left를 애니메이션해 매 프레임 레이아웃을
+            // 다시 계산했는데(저사양 폰에서 이 구간이 버벅인 원인), 전체폭 레일의
+            // translateX(50%)는 예전 left:50%와 정확히 같은 위치이면서 GPU 합성이라
+            // 레이아웃·리페인트가 없다. 화면상 움직임은 완전히 동일하다.
             <span
               key={traveler}
-              className="silock-symbol-traveler"
+              className="silock-traveler-rail"
               style={{ animationDelay: `${traveler * 0.92}s` }}
             >
-              <BrandGlyphAsset size="var(--person-size)" tone="orange" />
+              <span
+                className="silock-symbol-traveler"
+                style={{ animationDelay: `${traveler * 0.92}s` }}
+              >
+                <BrandGlyphAsset size="var(--person-size)" tone="orange" />
+              </span>
             </span>
           ))}
         </div>
@@ -3374,9 +3385,31 @@ export default function SilockLibraryDemo() {
           50% { translate: 5px 0; opacity: 0.9; }
         }
         .silock-traveler-lane { position: absolute; inset: 0; }
+        /* 레일: 전체폭(=lane 폭). 수평 이동만 translateX로 담당한다 — 전체폭이라
+           translateX(50%)가 예전 사람의 left:50%와 정확히 같은 지점이 된다. transform은
+           GPU 합성이라 매 프레임 레이아웃/리페인트가 없다. */
+        .silock-traveler-rail {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          animation: journey-x 7s cubic-bezier(0.42, 0, 0.35, 1) infinite both;
+          will-change: transform;
+        }
+        @keyframes journey-x {
+          0% { transform: translateX(var(--journey-start)); }
+          44% { transform: translateX(50%); }
+          49% { transform: translateX(50%); }
+          55% { transform: translateX(50%); }
+          59% { transform: translateX(56%); }
+          64% { transform: translateX(60%); }
+          92% { transform: translateX(calc(100% - var(--library-right) - var(--library-width) / 2)); }
+          98%, 100% { transform: translateX(calc(100% - var(--library-right) - var(--library-width) / 2)); }
+        }
         .silock-symbol-traveler {
           position: absolute;
-          left: var(--journey-start);
+          left: 0;
           top: 50%;
           width: var(--person-size);
           height: var(--person-size);
@@ -3386,9 +3419,11 @@ export default function SilockLibraryDemo() {
           filter: drop-shadow(0 9px 9px rgba(255,106,0,0.24));
           animation: consumer-journey 7s cubic-bezier(0.42, 0, 0.35, 1) infinite both;
         }
+        /* 사람: 세로 흔들림·크기·투명도·(순간)그림자만. 수평 이동(left)은 레일로 옮겨
+           제거했다. -50%,-50% 센터링은 그대로라, 레일 원점에 놓인 사람이 예전과
+           동일하게 그 지점에 중심을 맞춘다. */
         @keyframes consumer-journey {
           0% {
-            left: var(--journey-start);
             opacity: 0;
             transform: translate(-50%, -50%) scale(0.68);
           }
@@ -3397,40 +3432,33 @@ export default function SilockLibraryDemo() {
           24% { transform: translate(-50%, -50%) scale(0.94); }
           34% { transform: translate(-50%, calc(-50% - 8px)) scale(0.98); }
           44% {
-            left: 50%;
             opacity: 1;
             transform: translate(-50%, -50%) scale(1);
           }
           49% {
-            left: 50%;
             opacity: 1;
             transform: translate(-50%, -50%) scale(1);
             filter: drop-shadow(0 0 18px rgba(255,106,0,0.72));
           }
           55% {
-            left: 50%;
             opacity: 0;
             transform: translate(-50%, -50%) scale(0.72);
           }
           59% {
-            left: 56%;
             opacity: 0;
             transform: translate(-50%, -50%) scale(0.78);
           }
           64% {
-            left: 60%;
             opacity: 1;
             transform: translate(-50%, calc(-50% - 9px)) scale(0.9);
           }
           72% { transform: translate(-50%, -50%) scale(0.96); }
           80% { transform: translate(-50%, calc(-50% - 7px)) scale(1); }
           92% {
-            left: calc(100% - var(--library-right) - var(--library-width) / 2);
             opacity: 1;
             transform: translate(-50%, -50%) scale(0.92);
           }
           98%, 100% {
-            left: calc(100% - var(--library-right) - var(--library-width) / 2);
             opacity: 0;
             transform: translate(-50%, -50%) scale(0.72);
           }
