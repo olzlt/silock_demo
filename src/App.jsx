@@ -331,6 +331,10 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
   // 쓰기 위한 ref. 이 레이어는 memo로 감싸 최초 1회만 렌더링되고, 이후 스크롤
   // 진행률에 따른 opacity는 아래 스크롤 루프(measure)에서 이 ref로 직접 갱신한다.
   const whiteLayerRef = useRef(null);
+  // 흐릿한 서재 배경 사진의 opacity/blur도 매 프레임 바뀌므로 ref로 직접 쓴다.
+  // 이 배경은 큰 backgroundImage 스타일 객체를 갖는 전체 화면 div라, memo로 감싸
+  // 매 프레임 재생성·재조정을 피하면 이득이 있다.
+  const backdropRef = useRef(null);
   // 서재 비교(빈 서재 ↔ 꽉 찬 서재)에서 매 프레임 바뀌는 것은 clip-path(채우기)와
   // sweep line 위치 둘뿐이다. 이 둘을 아래 스크롤 루프에서 ref로 직접 쓰면,
   // 그 값을 prop으로 받던 무거운 리더기 서브트리(ReaderDevice→LibraryComparison→
@@ -1030,9 +1034,15 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
       // 쓴다(값 계산식은 종전 렌더에서 쓰던 것과 동일 — interpolateKeyframes로
       // 결과가 완전히 같다). memo된 레이어는 다시 렌더링되지 않으므로 이 ref 쓰기가
       // 유일한 갱신 경로다.
-      if (whiteLayerRef.current) {
+      if (whiteLayerRef.current || backdropRef.current) {
         const ep = clamp01(p / ENTRANCE_PHASE_END);
-        whiteLayerRef.current.style.opacity = String(interpolateKeyframes(ep, KF.whiteOpacity));
+        if (whiteLayerRef.current) {
+          whiteLayerRef.current.style.opacity = String(interpolateKeyframes(ep, KF.whiteOpacity));
+        }
+        if (backdropRef.current) {
+          backdropRef.current.style.opacity = String(interpolateKeyframes(ep, KF.libraryOpacity));
+          backdropRef.current.style.filter = `blur(${interpolateKeyframes(ep, KF.libraryBlur)}px)`;
+        }
       }
       // 서재 비교 채우기(clip-path)와 sweep line도 여기서 직접 쓴다 — 계산식은 렌더에서
       // comparisonProgress를 구하던 것과 완전히 동일하다(값 동일성 보장). 이렇게 하면
@@ -1223,9 +1233,9 @@ return (
             <>
               <WhiteTransitionLayer whiteLayerRef={whiteLayerRef} />
               <LibraryBackdrop
-                progress={entranceProgress}
                 isMobile={isMobile}
                 stableViewportHeight={stableViewportHeight}
+                backdropRef={backdropRef}
               />
               <ReaderJourney
                 entranceProgress={entranceProgress}
@@ -1427,9 +1437,20 @@ const KF = {
 const WhiteTransitionLayer = memo(function WhiteTransitionLayer({ whiteLayerRef }) {
   return <div ref={whiteLayerRef} style={{ position: "absolute", inset: 0, background: COLOR.white, opacity: 0, pointerEvents: "none" }} />;
 });
-function LibraryBackdrop({ progress, isMobile, stableViewportHeight }) {
-  const opacity = interpolateKeyframes(progress, KF.libraryOpacity);
-  const blur = interpolateKeyframes(progress, KF.libraryBlur);
+// memo: opacity/blur는 이제 상위 스크롤 루프가 backdropRef로 직접 쓴다. 남은 prop
+// (isMobile, stableViewportHeight)은 스크롤 진행률이 아니라 화면/주소창 상태에서
+// 오므로 매 프레임 바뀌지 않는다 → 최초 1회 + 리사이즈/주소창 확장 시에만 렌더링.
+// 주의: opacity/filter는 렌더 style에 넣지 않는다. 넣으면 stableViewportHeight가
+// 바뀌어 재렌더될 때(모바일 주소창 확장) 값이 초기값으로 리셋돼 배경이 한 프레임
+// 깜빡인다. 대신 마운트 시 useLayoutEffect로 초기값(진행률 0: opacity 0, blur 12)을
+// 한 번만 세팅하고, 이후엔 스크롤 루프가 갱신한다 — 재렌더가 이 값을 건드리지 않는다.
+const LibraryBackdrop = memo(function LibraryBackdrop({ isMobile, stableViewportHeight, backdropRef }) {
+  useLayoutEffect(() => {
+    const el = backdropRef.current;
+    if (!el) return;
+    el.style.opacity = "0";
+    el.style.filter = "blur(12px)";
+  }, [backdropRef]);
   // 배경 사진은 고정(sticky) 컨테이너(100dvh)를 inset:0으로 채운다. 모바일에서
   // 주소창(검색창)이 나타났다 사라지며 그 컨테이너 높이가 바뀌면, background-size:
   // cover가 매번 이미지를 다시 맞춰(줌/이동) 배경이 움찔거린다. 그래서 모바일에서는
@@ -1443,11 +1464,10 @@ function LibraryBackdrop({ progress, isMobile, stableViewportHeight }) {
       : { position: "absolute", inset: 0 };
   return (
     <div
+      ref={backdropRef}
       className="silock-library-bg"
       style={{
         ...box,
-        opacity,
-        filter: `blur(${blur}px)`,
         backgroundImage: `linear-gradient(180deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.3) 35%, rgba(255,255,255,0.6) 100%), url(${libraryBGImg})`,
         backgroundSize: "cover",
         backgroundPosition: "center",
@@ -1455,7 +1475,7 @@ function LibraryBackdrop({ progress, isMobile, stableViewportHeight }) {
       }}
     />
   );
-}
+});
 /**
  * 입구 연출 끝에 등장한 "그 리더기"가 페이지 전환 없이 같은 자리에서 계속
  * 이어져 부팅되고, 서재 비교 → 가치 제안 → CTA까지 진행되는 통합 컴포넌트.
