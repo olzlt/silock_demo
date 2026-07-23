@@ -1,7 +1,6 @@
 import roofImg from "./assets/roof.webp";
 import roofImgSmall from "./assets/roof-1400.webp"; // 반응형: 모바일·비레티나용 축소본(동일 비율)
 import entranceLogoImg from "./assets/logo_main_org.webp";
-import blackLogoImg from "./assets/logo_main_black.webp";
 import libraryBGImg from "./assets/library.webp"
 import { trackEvent } from "./analytics.js";
 
@@ -124,7 +123,18 @@ const COLOR = {
 // ============================================================
 /** 원본 PNG의 실제 심볼 영역만 보이도록 크롭해 사용하는 브랜드 글리프 */
 function BrandGlyphAsset({ size = 28, tone = "black" }) {
-  const source = tone === "orange" ? entranceLogoImg : blackLogoImg;
+  // 세 톤(주황/검정/흰색)을 모두 '주황 원본' 한 장에서 만든다. 검정은 예전엔
+  // 별도 파일(logo_main_black.webp)이었는데, 같은 crop 값을 써도 그 파일 속 심볼이
+  // 주황본보다 미세하게 크고 위쪽으로 치우쳐 있어서, 게이트의 검은 구멍 위에
+  // 통과하는 주황 심볼이 겹칠 때 테두리(특히 상단)가 삐져나와 "약간 빗나가"
+  // 보였다. 검정을 같은 원본 + brightness(0)로 만들면 실루엣이 픽셀 단위로 같아
+  // 구멍과 심볼이 정확히 포개진다(흰색은 invert 추가).
+  const filter =
+    tone === "white"
+      ? "brightness(0) invert(1)"
+      : tone === "black"
+      ? "brightness(0)"
+      : "none";
 
   return (
     <span
@@ -139,7 +149,7 @@ function BrandGlyphAsset({ size = 28, tone = "black" }) {
       }}
     >
       <img
-        src={source}
+        src={entranceLogoImg}
         alt=""
         style={{
           position: "absolute",
@@ -149,7 +159,7 @@ function BrandGlyphAsset({ size = 28, tone = "black" }) {
           left: "-159.6%",
           top: "-78.4%",
           objectFit: "fill",
-          filter: tone === "white" ? "brightness(0) invert(1)" : "none",
+          filter,
           pointerEvents: "none",
         }}
       />
@@ -205,6 +215,7 @@ const CLOTH_WORDS = CLOTH_LINES.join(" ").trim().split(/\s+/);
 // (CodePen: https://codepen.io/shubniggurath/pen/ZYpjorm, MIT License)을
 // 참고해 재구성했으며, homeX/homeY, restoreStrength, spreadDir 등은
 // 이 프로젝트에서 추가한 독자 로직입니다.
+// MIT 라이선스 전문은 루트의 THIRD-PARTY-NOTICES.txt 참고.
 // ============================================================
 class Vec2 {
   constructor(x = 0, y = 0) {
@@ -3453,6 +3464,11 @@ export default function SilockLibraryDemo() {
           44% {
             opacity: 1;
             transform: translate(-50%, -50%) scale(1);
+            /* 구멍에 딱 맞춰 머무는 순간 — 그림자를 상하 대칭(0 offset)으로 바꿔
+               주황 글로우가 심볼 아래로 쏠려 "빗나가 보이는" 현상을 없앤다.
+               기본 그림자(0 9px 9px)는 이동 중 떠 있는 느낌용이라 그대로 두고,
+               게이트 도달 지점에서만 중앙 정렬한다. */
+            filter: drop-shadow(0 0 12px rgba(255,106,0,0.5));
           }
           49% {
             opacity: 1;

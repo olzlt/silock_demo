@@ -34,7 +34,12 @@
       "Bash(node /tmp/overlap_check.mjs)",
       "Bash(rm -f /tmp/overlap_check.mjs)",
       "Bash(python3 -c ' *)",
-      "Bash(node -e \"const fs=require\\('fs'\\);const b=fs.readFileSync\\('public/open_graph.png'\\);console.log\\('w',b.readUInt32BE\\(16\\),'h',b.readUInt32BE\\(20\\)\\);\")"
+      "Bash(node -e \"const fs=require\\('fs'\\);const b=fs.readFileSync\\('public/open_graph.png'\\);console.log\\('w',b.readUInt32BE\\(16\\),'h',b.readUInt32BE\\(20\\)\\);\")",
+      "Bash(node -e \"const fs=require\\('fs'\\);const b=fs.readFileSync\\('chimes-main/src/roof.png'\\);console.log\\('chimes roof.png:',b.readUInt32BE\\(16\\),'x',b.readUInt32BE\\(20\\)\\);\")",
+      "Bash(node -e \"const fs=require\\('fs'\\);for\\(const f of ['roof-japan','roof-china','roof-korea','roof-italy','roof-usa','roof-india']\\){try{const b=fs.readFileSync\\('chimes-main/src/'+f+'.png'\\);console.log\\(f, b.readUInt32BE\\(16\\)+'x'+b.readUInt32BE\\(20\\)\\);}catch\\(e\\){console.log\\(f,'없음'\\);}}\")",
+      "Bash(python -m http.server 8765)",
+      "Bash(python -c ' *)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('scripts',d.get\\('scripts'\\)\\); print\\('name',d.get\\('name'\\)\\)\")"
     ]
   }
 }
