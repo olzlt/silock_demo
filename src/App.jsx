@@ -1232,7 +1232,7 @@ return (
 
           <div ref={guideRef} style={{ ...eStyles.guide, bottom: guideBottom, opacity: guideOpacity }}>
             {activated
-              ? scrollDirection === "up"
+              ? scrollDirection === "up" && entranceProgress > 0
                 ? "위로 스크롤하여 서재 밖으로 나가세요"
                 : "아래로 스크롤하여 서재 안으로 들어가세요"
               : isMobile
