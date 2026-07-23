@@ -2649,8 +2649,8 @@ function BrandConceptMotion() {
         </div>
 
         <div className="silock-queue-line" />
-        <div className="silock-queue-arrow silock-queue-arrow-before">→</div>
-        <div className="silock-queue-arrow silock-queue-arrow-after">→</div>
+        {/* <div className="silock-queue-arrow silock-queue-arrow-before">→</div>
+        <div className="silock-queue-arrow silock-queue-arrow-after">→</div> */}
 
         <div className="silock-traveler-lane">
           {travelers.map((traveler) => (
@@ -3394,20 +3394,20 @@ export default function SilockLibraryDemo() {
           height: 1px;
           background: repeating-linear-gradient(90deg, ${COLOR.neutralGray} 0 7px, transparent 7px 14px);
         }
-        .silock-queue-arrow {
-          position: absolute;
-          top: 50%;
-          color: rgba(255,106,0,0.46);
-          font-size: 20px;
-          transform: translateY(-55%);
-          animation: queue-arrow-nudge 1.4s ease-in-out infinite;
-        }
-        .silock-queue-arrow-before { left: 39%; }
-        .silock-queue-arrow-after { left: 67%; animation-delay: 180ms; }
-        @keyframes queue-arrow-nudge {
-          0%, 100% { translate: 0 0; opacity: 0.38; }
-          50% { translate: 5px 0; opacity: 0.9; }
-        }
+        // .silock-queue-arrow {
+        //   position: absolute;
+        //   top: 50%;
+        //   color: rgba(255,106,0,0.46);
+        //   font-size: 20px;
+        //   transform: translateY(-55%);
+        //   animation: queue-arrow-nudge 1.4s ease-in-out infinite;
+        // }
+        // .silock-queue-arrow-before { left: 39%; }
+        // .silock-queue-arrow-after { left: 67%; animation-delay: 180ms; }
+        // @keyframes queue-arrow-nudge {
+        //   0%, 100% { translate: 0 0; opacity: 0.38; }
+        //   50% { translate: 5px 0; opacity: 0.9; }
+        // }
         .silock-traveler-lane { position: absolute; inset: 0; }
         /* 레일: 전체폭(=lane 폭). 수평 이동만 translateX로 담당한다 — 전체폭이라
            translateX(50%)가 예전 사람의 left:50%와 정확히 같은 지점이 된다. transform은
@@ -3825,7 +3825,7 @@ export default function SilockLibraryDemo() {
             transform-origin: left center;
           }
           .silock-queue-line { left: 82px; }
-          .silock-queue-arrow { display: none; }
+          // .silock-queue-arrow { display: none; }
           .silock-motion-caption-platform { width: 31%; }
           .silock-motion-caption strong { font-size: 13px; }
           .silock-motion-caption span { font-size: 10px; }
