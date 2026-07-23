@@ -3394,6 +3394,12 @@ export default function SilockLibraryDemo() {
           left: 0;
           width: 100%;
           height: 100%;
+          /* 레일은 transform(+will-change)으로 새 쌓임 맥락을 만든다. 그러면 안쪽 사람의
+             z-index가 전역이 아니라 레일 내부 기준이 되어, 레일 자체(z auto)가 게이트
+             (z3)·서재(z5) 뒤로 밀린다. 그래서 예전에 사람이 갖던 z-index:4를 레일에
+             줘서, 레일 전체가 예전 사람과 똑같이 게이트와 서재 사이 층에 놓이게 한다
+             (사람은 게이트 앞·서재 뒤). */
+          z-index: 4;
           animation: journey-x 7s cubic-bezier(0.42, 0, 0.35, 1) infinite both;
           will-change: transform;
         }
