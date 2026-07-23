@@ -1146,6 +1146,9 @@ return (
                 ref={roofRef}
                 src={roofImg}
                 alt="Silock 입구"
+                // 지붕은 첫 화면의 히어로 이미지다 — 브라우저가 다른 리소스보다
+                // 먼저 받도록 우선순위만 올린다(이미지 바이트·화질은 그대로, 100% 안전).
+                fetchPriority="high"
                 onLoad={handleRoofLoad}
                 style={{
                   ...eStyles.roof,
