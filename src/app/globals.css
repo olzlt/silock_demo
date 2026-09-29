@@ -1,0 +1,50 @@
+@import "tailwindcss/theme.css";
+@import "tailwindcss/utilities.css";
+
+@theme {
+  --color-primary: #ff6a00;
+  --color-foreground: #111111;
+  --color-background: #ffffff;
+  --color-muted: #f2f2f2;
+  --color-border: #e6e2dd;
+  --font-sans: "Noto Sans KR", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-serif: "Noto Serif KR", serif;
+  --radius-card: 1rem;
+  --radius-button: 9999px;
+}
+
+:root {
+  --brand-orange: #ff6a00;
+  --brand-black: #111111;
+  --brand-white: #ffffff;
+  --brand-light-gray: #f2f2f2;
+  --brand-neutral-gray: #e6e2dd;
+}
+
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+html { margin: 0; padding: 0; scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  overflow-x: hidden;
+  background: var(--brand-white);
+  color: var(--brand-black);
+  font-family: var(--font-sans);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button, input, textarea, select { font: inherit; }
+button { cursor: pointer; }
+img, svg, canvas { display: block; max-width: 100%; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}

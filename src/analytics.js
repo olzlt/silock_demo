@@ -1,4 +1,4 @@
-const measurementId = import.meta.env.VITE_GA_MEASUREMENT_ID?.trim();
+const measurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID?.trim();
 
 function hasValidMeasurementId() {
   return /^G-[A-Z0-9]+$/i.test(measurementId || "");

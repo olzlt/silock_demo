@@ -27,3 +27,8 @@ dist-ssr
 *.sw?
 
 chimes-main/*
+.next/
+out/
+pnpm-debug.log*
+
+.pnpm-store/

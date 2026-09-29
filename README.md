@@ -1,49 +1,52 @@
-# React + Vite
+# Silock 랜딩페이지
 
-## 일일 방문자 확인 (Google Analytics 4)
+Silock은 디지털 출판 콘텐츠의 지속 소장 경험을 설계하는 오픈 마켓플레이스입니다. 이 랜딩은 브랜드 철학, FAQ, 사용자 설문을 소개합니다. 현재 화면의 이미지·카피·스크롤 연출을 유지하면서 Next.js App Router로 구성했습니다.
 
-이 프로젝트는 `VITE_GA_MEASUREMENT_ID`가 설정된 배포 환경에서 GA4 방문자 집계를 시작합니다.
+## 기술 스택
 
-1. [Google Analytics](https://analytics.google.com/)에서 계정과 GA4 속성을 만듭니다.
-2. `관리 → 데이터 스트림 → 웹`에서 사이트 주소를 등록합니다.
-3. 발급된 `G-`로 시작하는 측정 ID를 복사합니다.
-4. 로컬에서는 `.env.example`을 참고해 `.env` 파일을 만들고 아래 값을 입력합니다.
+- Next.js App Router, React 19
+- Tailwind CSS 4, shadcn/ui 방식의 재사용 Button·Card 컴포넌트
+- GA4 선택적 측정, Google Forms 설문
 
-   ```env
-   VITE_GA_MEASUREMENT_ID=G-실제측정ID
-   ```
+## 실행
 
-5. 배포 서비스에도 같은 이름의 환경변수를 추가한 뒤 다시 빌드·배포합니다.
+Node.js 20.9 이상과 pnpm이 필요합니다.
 
-방문 직후 데이터는 `보고서 → 실시간`에서 확인합니다. 일별 방문자는 `보고서`에서 날짜를 하루로 지정한 뒤 `총 사용자` 또는 `활성 사용자`를 확인합니다. 일반 보고서 반영에는 시간이 걸릴 수 있습니다.
-
-자동 `page_view` 외에 다음 이벤트도 함께 수집합니다.
-
-- `entrance_activated`: 입구 활성화
-- `survey_open`: 참여하기 버튼으로 설문 열기
-- `survey_complete`: 사용자가 `제출을 완료했어요` 버튼을 눌러 완료를 확인
-
-Google Form의 로그인 기반 `응답 1개로 제한`은 사용하지 않습니다. 완료 여부는 iframe 로드를 자동 감지하지 않고(cross-origin이라 실제 제출을 코드로 알 수 없고, 설문을 열거나 폼 내부를 이동만 해도 완료로 오인됨), 사용자가 설문 모달의 `제출을 완료했어요` 버튼을 직접 눌렀을 때만 `silock_survey_completed_v3=true`를 LocalStorage에 저장합니다. 이미 저장된 브라우저에서 다시 `참여하기`를 누르면 폼 대신 `이미 참여하셨습니다` 안내 모달을 띄우며, 이 모달은 닫고 랜딩으로 돌아올 수 있습니다(전체 화면을 차단하지 않음). 과거 자동 감지 버전이 잘못 저장한 완료 플래그(`silock_survey_completed`, `silock_survey_completed_v2`)는 키가 `_v3`로 바뀌면서 무시되므로 재배포 후 자동으로 리셋됩니다.
-
-테스트 상태를 초기화하려면 브라우저 개발자 도구 Console에서 아래 코드를 실행한 뒤 새로고침합니다.
-
-```js
-localStorage.removeItem("silock_survey_completed_v3")
+```bash
+pnpm install
+pnpm dev
 ```
 
-Google Sheets를 방문 로그 저장소로 직접 사용하지 않습니다. 표가 필요하면 GA4 보고서에서 CSV로 내보내거나, 추후 Google Analytics Data API로 Sheets 보고서를 자동화하는 방식이 안전합니다.
+브라우저에서 `http://localhost:3000`을 엽니다. 검증 명령은 `pnpm lint`, `pnpm build`, `pnpm start`입니다.
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+`.env.example`을 복사해 `.env`를 만들 수 있습니다. `NEXT_PUBLIC_GA_MEASUREMENT_ID`는 선택 항목이며 비워 두면 추적 스크립트를 로드하지 않습니다. `NEXT_PUBLIC_SITE_URL`은 배포 도메인으로 설정하면 공유 메타데이터와 사이트맵에 반영됩니다.
 
-Currently, two official plugins are available:
+## 인터랙션
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- 입구의 심볼을 찾아 활성화하면 스크롤 여정이 시작됩니다.
+- 스크롤에 따라 리더기 부팅, 빈 서재와 채워진 서재 비교, 브랜드 스토리가 이어집니다.
+- `더 알아보기`는 브랜드 스토리로 부드럽게 이동합니다.
+- `참여하기`는 설문 모달을 열고, 완료 확인은 사용자가 직접 누른 뒤 로컬 저장소에 기록됩니다.
+- FAQ는 키보드로도 펼칠 수 있습니다. 모션 최소화 설정을 존중합니다.
 
-## React Compiler
+## 프로젝트 구조
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- `src/app`: App Router, 메타데이터, 전역 스타일, robots 및 sitemap
+- `src/components/SilockExperience.jsx`: 랜딩 연출과 설문 흐름
+- `src/components/ui`: 재사용 UI 컴포넌트
+- `src/lib`: 색상 토큰과 className 유틸
+- `public/images`: 랜딩 이미지
+- `AGENTS.md`, `CLAUDE.md`: 에이전트 작업 규칙
 
-## Expanding the ESLint configuration
+## 배포 URL
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+[https://silock-demo.vercel.app/](https://silock-demo.vercel.app/)
+
+이 주소는 기존 프로젝트의 공유 메타데이터에 설정된 주소입니다. 새 버전을 공개하려면 배포 환경에서 `NEXT_PUBLIC_SITE_URL`을 실제 도메인으로 설정하고 다시 빌드합니다.
+
+## 검증 결과
+
+- `pnpm lint`, `pnpm build` 통과. 320px, 390px, 1280px에서 가로 넘침과 깨진 이미지가 없고 입구 버튼·FAQ가 동작합니다.
+- Lighthouse 모바일 로컬 측정: 성능 25, 접근성 96, SEO 100. 원본 측정에서 발견한 ARIA 오류와 비브랜드 회색 글자 대비를 고쳤습니다. 브랜드 색상 `#FF6A00`과 `#FFFFFF`의 대비 지적은 화면 유지 요청에 따라 남아 있습니다.
+- 성능 점수는 로컬 측정 환경의 매우 긴 메인 스레드 작업과 외부 Google Fonts 요청 차단의 영향을 받았습니다. 실제 배포 후 동일한 조건에서 다시 측정하는 것이 좋습니다. 측정 원본은 `reports/lighthouse-mobile.json`, `reports/lighthouse-final.json`에 있습니다.
+- 기존 배포 주소와 설문 링크의 HTTP 200 응답을 확인했습니다. 이 저장소의 최신 변경 사항은 아직 배포하지 않았습니다.

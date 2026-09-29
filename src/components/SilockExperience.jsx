@@ -1,8 +1,12 @@
-import roofImg from "./assets/roof.webp";
-import roofImgSmall from "./assets/roof-1400.webp"; // 반응형: 모바일·비레티나용 축소본(동일 비율)
-import entranceLogoImg from "./assets/logo_main_org.webp";
-import libraryBGImg from "./assets/library.webp"
-import { trackEvent } from "./analytics.js";
+"use client";
+const roofImg = "/images/roof.webp";
+const roofImgSmall = "/images/roof-1400.webp"; // 반응형: 모바일·비레티나용 축소본(동일 비율)
+const entranceLogoImg = "/images/logo_main_org.webp";
+const libraryBGImg = "/images/library.webp";
+import { initAnalytics, trackEvent } from "../analytics.js";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { COLOR } from "@/lib/design-tokens";
 
 import {
   Fragment,
@@ -12,6 +16,7 @@ import {
   useLayoutEffect,
   useState,
   useCallback,
+  useSyncExternalStore,
 } from "react";
 
 /**
@@ -53,7 +58,16 @@ function smoothstep(edge0, edge1, x) {
 function getPointID(row, col, gridH) {
   return col * gridH + row;
 }
-const SCROLL_KEYS = new Set([" ", "Spacebar", "ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End"]);
+const SCROLL_KEYS = new Set([
+  " ",
+  "Spacebar",
+  "ArrowUp",
+  "ArrowDown",
+  "PageUp",
+  "PageDown",
+  "Home",
+  "End",
+]);
 function interpolateKeyframes(progress, keyframes) {
   if (progress <= keyframes[0][0]) return keyframes[0][1];
   for (let i = 0; i < keyframes.length - 1; i++) {
@@ -96,7 +110,7 @@ function detectLowPower() {
 }
 /** 반응형 규칙표 기준 breakpoint(640px) 아래를 모바일로 취급 */
 function useIsMobile(breakpoint = 640) {
-  const [isMobile, setIsMobile] = useState(() => (typeof window !== "undefined" ? window.innerWidth < breakpoint : false));
+  const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia(`(max-width: ${breakpoint - 1}px)`);
     const handler = () => setIsMobile(mq.matches);
@@ -110,13 +124,6 @@ function useIsMobile(breakpoint = 640) {
 // ============================================================
 // 브랜드 토큰
 // ============================================================
-const COLOR = {
-  orange: "#FF6A00",
-  black: "#111111",
-  white: "#FFFFFF",
-  lightGray: "#F2F2F2",
-  neutralGray: "#E6E2DD",
-};
 
 // ============================================================
 // 브랜드 심볼 — 입구 버튼 / 현판 / 리더기 상단 브랜드 마크에서 재사용
@@ -133,8 +140,8 @@ function BrandGlyphAsset({ size = 28, tone = "black" }) {
     tone === "white"
       ? "brightness(0) invert(1)"
       : tone === "black"
-      ? "brightness(0)"
-      : "none";
+        ? "brightness(0)"
+        : "none";
 
   return (
     <span
@@ -186,7 +193,6 @@ function KeyholeSquareIcon({ size = 40, filled = false }) {
     </div>
   );
 }
-
 
 const CLOTH_LINES = [
   "기록은 오늘을 붙잡기 위해 쓰는 것이 아니라 먼 훗날 오늘을 다시 만날 사람을 위하여 남기는 것이다",
@@ -306,7 +312,14 @@ class Constraint {
 // ============================================================
 // EntranceSection : STEP1 + STEP2 (이전 데모 그대로)
 // ============================================================
-function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRef, lowPower = false }) {
+function EntranceSection({
+  activated,
+  onActivate,
+  onSurveyOpen,
+  onExplore,
+  ctaRef,
+  lowPower = false,
+}) {
   const hostRef = useRef(null);
   const canvasRef = useRef(null);
 
@@ -316,24 +329,20 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
   // 지붕 이미지의 실제 가로/세로 비율(naturalWidth/naturalHeight).
   // 지붕 "크기"와 커튼/로고 "위치"를 같은 좌표계(뷰포트 높이 기준)로
   // 환산하기 위한 유일한 기준값 — 로드 전에는 에셋 원본 비율을 기본값으로 사용.
-  const [roofAspectRatio, setRoofAspectRatio] = useState(ROOF_ASSET_ASPECT_RATIO);
+  const [roofAspectRatio, setRoofAspectRatio] = useState(
+    ROOF_ASSET_ASPECT_RATIO,
+  );
 
-  const [viewportHeight, setViewportHeight] = useState(
-    () => (typeof window !== "undefined" ? window.innerHeight : 800)
-  );
-  const [viewportWidth, setViewportWidth] = useState(
-    () => (typeof window !== "undefined" ? window.innerWidth : 1280)
-  );
+  const [viewportHeight, setViewportHeight] = useState(800);
+  const [viewportWidth, setViewportWidth] = useState(1280);
   // 리더기(꽉 찬 서재) 크기 계산 전용의 "흔들리지 않는" 화면 높이.
   // 모바일에서 아래로 스크롤하면 주소창이 접혔다 펼쳐지며 innerHeight가 수십 px씩
   // 오르내리는데, 리더기 크기를 live viewportHeight로 계산하면 그때마다 리더기가
   // 작아졌다 커졌다 반복한다(사용자 리포트). 그래서 리더기 크기에는 "지금까지 본
   // 가장 큰(=주소창이 접힌 상태의) 높이"를 쓴다. 한 번 커지면 다시 줄지 않아
   // 스크롤 중 크기가 고정된다. 가로폭이 바뀌는 실제 회전/리사이즈에서만 재보정한다.
-  const [stableViewportHeight, setStableViewportHeight] = useState(
-    () => (typeof window !== "undefined" ? window.innerHeight : 800)
-  );
-  const lastWidthRef = useRef(typeof window !== "undefined" ? window.innerWidth : 1280);
+  const [stableViewportHeight, setStableViewportHeight] = useState(800);
+  const lastWidthRef = useRef(1280);
 
   const entranceLogoRef = useRef(null);
   const handleActivateRef = useRef(null);
@@ -373,7 +382,9 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
   // 0 ~ ENTRANCE_PHASE_END 구간(줄 통과 연출) 로컬 진행률
   const entranceProgress = clamp01(journeyProgress / ENTRANCE_PHASE_END);
   // ENTRANCE_PHASE_END ~ 1 구간(리더기 부팅 → 비교 → 가치제안 → CTA) 로컬 진행률
-  const libraryProgress = clamp01((journeyProgress - ENTRANCE_PHASE_END) / (1 - ENTRANCE_PHASE_END));
+  const libraryProgress = clamp01(
+    (journeyProgress - ENTRANCE_PHASE_END) / (1 - ENTRANCE_PHASE_END),
+  );
 
   const [showRipple, setShowRipple] = useState(false);
   // 캔버스 물리 루프(rAF)에서 최신 스크롤 진행률을 읽기 위한 ref.
@@ -423,7 +434,8 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
   // 기준점으로 삼아 그 이후에 실제로 더 스크롤한 양만큼만 반영한다. 기준점 이전에
   // 얼마나 새어 들어왔는지와 무관하게 화면이 켜지고 유예가 끝나는 순간 항상 0에서
   // 다시 시작한다.
-  const COMPARISON_RANGE = LIBRARY_KF.comparison[1][0] - LIBRARY_KF.comparison[0][0];
+  const COMPARISON_RANGE =
+    LIBRARY_KF.comparison[1][0] - LIBRARY_KF.comparison[0][0];
   // 잠금 리스너가 붙기 전, 문턱을 넘기는 단 한 번의 스크롤 이벤트 자체가 크게
   // (트랙패드를 세게 튕기는 경우 등) 들어오면 그 지점이 이미 1 - COMPARISON_RANGE를
   // 넘어설 수 있다 — 그러면 아무리 더 스크롤해도 100%에 닿지 못한다. baseline이
@@ -454,7 +466,7 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
       ? 0
       : clamp01(
           (libraryProgress - comparisonBaseline) /
-            ((1 - comparisonBaseline) * (1 - LIBRARY_COMPLETION_DWELL))
+            ((1 - comparisonBaseline) * (1 - LIBRARY_COMPLETION_DWELL)),
         );
   // 완성 콘텐츠(리더기 상단 헤드라인 + 하단 안내/버튼/화살표)는 한 번에 팝업되지
   // 않고, 비교 전환률 contentRevealStart(70%)~contentRevealAt(90%) 구간에 걸쳐
@@ -463,7 +475,7 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
   const contentReveal = bootDone
     ? clamp01(
         (comparisonProgress - LIBRARY_KF.contentRevealStart) /
-          (LIBRARY_KF.contentRevealAt - LIBRARY_KF.contentRevealStart)
+          (LIBRARY_KF.contentRevealAt - LIBRARY_KF.contentRevealStart),
       )
     : 0;
   // 좌우 비교 안내("아래로 스크롤하여…")는 완성 콘텐츠가 나타나는 만큼 반대로
@@ -481,7 +493,8 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
   // 실제로 자리잡은 뒤"라는 조건을 추가로 걸어, 첫 방문·재방문·역스크롤 모두에서
   // 두 안내가 겹치는 순간이 생기지 않게 한다.
   const readerFullySettled = entranceProgress >= 1;
-  const libraryGuideReveal = bootDone && readerFullySettled ? 1 - contentReveal : 0;
+  const libraryGuideReveal =
+    bootDone && readerFullySettled ? 1 - contentReveal : 0;
   // 버튼·화살표가 클릭 가능해지는 시점 — 완성 콘텐츠가 (거의) 완전히 드러난 뒤.
   // contentReveal 기준으로 맞춰, "다 보이는데 아직 클릭 안 되는" 틈이 없게 한다.
   const showCTA = contentReveal >= 0.999;
@@ -510,7 +523,8 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
 
   const maxRoofHeight = Math.max(
     0,
-    (curtainBottom - viewportHeight * MIN_CURTAIN_HEIGHT_RATIO) / CURTAIN_TOP_RATIO
+    (curtainBottom - viewportHeight * MIN_CURTAIN_HEIGHT_RATIO) /
+      CURTAIN_TOP_RATIO,
   );
   const roofWidthCap = maxRoofHeight * roofAspectRatio;
 
@@ -518,7 +532,8 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
   const curtainTop = roofHeight * CURTAIN_TOP_RATIO;
 
   const LOGO_POSITION_IN_CURTAIN = 0.4; // 커튼 중앙에 위치 (원하는 값으로 조절)
-  const logoTop = curtainTop + (curtainBottom - curtainTop) * LOGO_POSITION_IN_CURTAIN;
+  const logoTop =
+    curtainTop + (curtainBottom - curtainTop) * LOGO_POSITION_IN_CURTAIN;
 
   // 안내 문구의 초기/대체 위치 — 실제 값은 물리 시뮬레이션이 시작되면 아래 물리 루프에서
   // "커튼의 실제 렌더링된 하단"을 매 프레임 측정해 갱신한다(guideRef 참고).
@@ -565,31 +580,31 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
   }, []);
 
   useLayoutEffect(() => {
-      if (!roofRef.current) return;
+    if (!roofRef.current) return;
 
-      const update = () => {
-          // getBoundingClientRect()는 조상에 걸린 transform: scale(gateScale)의
-          // 영향을 그대로 받는다 — 스크롤로 확대(1~7배)되는 도중에 리사이즈/옵저버
-          // 콜백이 실행되면 이미 확대된 화면 좌표를 지붕 실제 크기로 잘못 저장하게
-          // 되고, 그 값을 기준으로 계산되는 커튼 위치/크기·로고 위치가 전부 어긋나
-          // 화면 밖으로 밀려난다(지붕 자체는 이 값에 의존하지 않아 멀쩡해 보인다).
-          // offsetWidth/offsetHeight는 transform의 영향을 받지 않는 실제 레이아웃
-          // 크기이므로 이 문제가 없다.
-          setRoofHeight(roofRef.current.offsetHeight);
-          setRoofWidth(roofRef.current.offsetWidth);
-      };
+    const update = () => {
+      // getBoundingClientRect()는 조상에 걸린 transform: scale(gateScale)의
+      // 영향을 그대로 받는다 — 스크롤로 확대(1~7배)되는 도중에 리사이즈/옵저버
+      // 콜백이 실행되면 이미 확대된 화면 좌표를 지붕 실제 크기로 잘못 저장하게
+      // 되고, 그 값을 기준으로 계산되는 커튼 위치/크기·로고 위치가 전부 어긋나
+      // 화면 밖으로 밀려난다(지붕 자체는 이 값에 의존하지 않아 멀쩡해 보인다).
+      // offsetWidth/offsetHeight는 transform의 영향을 받지 않는 실제 레이아웃
+      // 크기이므로 이 문제가 없다.
+      setRoofHeight(roofRef.current.offsetHeight);
+      setRoofWidth(roofRef.current.offsetWidth);
+    };
 
-      update();
+    update();
 
-      const ro = new ResizeObserver(update);
-      ro.observe(roofRef.current);
+    const ro = new ResizeObserver(update);
+    ro.observe(roofRef.current);
 
-      window.addEventListener("resize", update);
+    window.addEventListener("resize", update);
 
-      return () => {
-          ro.disconnect();
-          window.removeEventListener("resize", update);
-      };
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", update);
+    };
   }, []);
 
   // 캐시된 이미지는 onLoad가 이미 지나간 뒤일 수 있으므로 마운트 시점에 한 번 더 확인
@@ -625,11 +640,11 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
     const CONFIG = {
       gridW: Math.min(
         isNarrowCanvas ? 16 : 28,
-        Math.max(6, Math.floor(width / 26))
+        Math.max(6, Math.floor(width / 26)),
       ),
       gridH: Math.min(
-        isNarrowCanvas ? 32 : 40,          // 16/22 → 22/28로 캡 상향
-        Math.max(6, Math.floor(height / 24))  // 26 → 18로 줄여 행간 촘촘하게
+        isNarrowCanvas ? 32 : 40, // 16/22 → 22/28로 캡 상향
+        Math.max(6, Math.floor(height / 24)), // 26 → 18로 줄여 행간 촘촘하게
       ),
       gravity: 0.12,
       damping: 0.97,
@@ -651,10 +666,7 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
 
     const cellWidth = drawableWidth / (CONFIG.gridW - 1);
 
-    const fontSize = Math.max(
-      8,
-      Math.min(20, cellWidth * 0.72)
-    );
+    const fontSize = Math.max(8, Math.min(20, cellWidth * 0.72));
 
     const topInset = fontSize * 0.6; // 상단 여백 (글자 절반 정도)
     const cellHeight = (height - topInset) / (CONFIG.gridH - 1);
@@ -696,7 +708,8 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
       // 현재 열 높이에 들어가는 범위에서 단어를 통째로 채운다
       while (columnWords.length < CLOTH_WORDS.length) {
         const word = CLOTH_WORDS[wordCursor];
-        const nextLength = columnLength + (columnWords.length > 0 ? 1 : 0) + word.length;
+        const nextLength =
+          columnLength + (columnWords.length > 0 ? 1 : 0) + word.length;
         if (nextLength > CONFIG.gridH && columnWords.length > 0) break;
         columnWords.push(word);
         columnLength = nextLength;
@@ -742,7 +755,9 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
         const y = topInset + j * cellHeight;
         const pinned = j === 0;
 
-        particles.push(new Particle({ x, y, pinned, char: rowChars[j], spreadDir }));
+        particles.push(
+          new Particle({ x, y, pinned, char: rowChars[j], spreadDir }),
+        );
       }
     }
 
@@ -752,7 +767,13 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
         const p = particles[id];
         if (j < CONFIG.gridH - 1) {
           const below = particles[getPointID(j + 1, i, CONFIG.gridH)];
-          const c = new Constraint({ p1: p, p2: below, length: cellHeight, compressFactor: CONFIG.compressFactor, stretchFactor: CONFIG.stretchFactor });
+          const c = new Constraint({
+            p1: p,
+            p2: below,
+            length: cellHeight,
+            compressFactor: CONFIG.compressFactor,
+            stretchFactor: CONFIG.stretchFactor,
+          });
           constraints.push(c);
           p.downConstraint = c;
         }
@@ -760,9 +781,20 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
         // 가로 스페이서를 연결하지 않는다 — 이어 붙여 두면 고정줄(맨 위, pinned)은
         // 걸림 없이 목표 지점까지 이동하는데 그 아래(비고정) 줄들만 이 제약에 걸려
         // 중간에서 꺾이는 것처럼 보인다
-        if (i < CONFIG.gridW - 1 && columnSpreadDir[i] === columnSpreadDir[i + 1]) {
+        if (
+          i < CONFIG.gridW - 1 &&
+          columnSpreadDir[i] === columnSpreadDir[i + 1]
+        ) {
           const right = particles[getPointID(j, i + 1, CONFIG.gridH)];
-          constraints.push(new Constraint({ p1: p, p2: right, length: cellWidth, compressFactor: CONFIG.spacerCompress, stretchFactor: CONFIG.spacerStretch }));
+          constraints.push(
+            new Constraint({
+              p1: p,
+              p2: right,
+              length: cellWidth,
+              compressFactor: CONFIG.spacerCompress,
+              stretchFactor: CONFIG.spacerStretch,
+            }),
+          );
         }
       }
     }
@@ -787,7 +819,10 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
       }
     }
     if (document.fonts && document.fonts.load) {
-      document.fonts.load(`500 ${fontSize}px "Noto Serif KR"`).then(renderGlyphs).catch(renderGlyphs);
+      document.fonts
+        .load(`500 ${fontSize}px "Noto Serif KR"`)
+        .then(renderGlyphs)
+        .catch(renderGlyphs);
       renderGlyphs();
       setTimeout(renderGlyphs, 300);
     } else {
@@ -799,7 +834,10 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
       // 파티클 좌표는 CSS 픽셀이므로, 백킹 스토어(dpr배)가 아니라 논리 크기
       // (width/height)를 기준으로 매핑한다.
       const rect = canvas.getBoundingClientRect();
-      return new Vec2((e.clientX - rect.left) * (width / rect.width), (e.clientY - rect.top) * (height / rect.height));
+      return new Vec2(
+        (e.clientX - rect.left) * (width / rect.width),
+        (e.clientY - rect.top) * (height / rect.height),
+      );
     }
     function onPointerDown(e) {
       const p = toLocal(e);
@@ -813,17 +851,13 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
         const scaleX = width / canvasRect.width;
         const scaleY = height / canvasRect.height;
 
-        const logoLeft =
-          (logoRect.left - canvasRect.left) * scaleX;
+        const logoLeft = (logoRect.left - canvasRect.left) * scaleX;
 
-        const logoRight =
-          (logoRect.right - canvasRect.left) * scaleX;
+        const logoRight = (logoRect.right - canvasRect.left) * scaleX;
 
-        const logoTop =
-          (logoRect.top - canvasRect.top) * scaleY;
+        const logoTop = (logoRect.top - canvasRect.top) * scaleY;
 
-        const logoBottom =
-          (logoRect.bottom - canvasRect.top) * scaleY;
+        const logoBottom = (logoRect.bottom - canvasRect.top) * scaleY;
 
         const isInsideLogo =
           p.x >= logoLeft &&
@@ -883,7 +917,9 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
         if (ls < radiusSq) {
           const strength = smoothstep(radiusSq, 0, ls) * CONFIG.mouseStrength;
           const dist = Math.sqrt(ls) || 1;
-          particle.applyForce(new Vec2((dx / dist) * strength, (dy / dist) * strength));
+          particle.applyForce(
+            new Vec2((dx / dist) * strength, (dy / dist) * strength),
+          );
         }
       }
     }
@@ -925,14 +961,23 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
         const half = cssSize / 2;
         // 회전·이동은 CSS 좌표 그대로 두되, 백킹 스토어가 dpr배이므로 변환 행렬에
         // dpr을 곱하고, 비트맵은 CSS 크기(cssSize)로 그려 넣어 선명하게 렌더링한다.
-        ctx.setTransform(cos * dpr, sin * dpr, -sin * dpr, cos * dpr, p.pos.x * dpr, p.pos.y * dpr);
+        ctx.setTransform(
+          cos * dpr,
+          sin * dpr,
+          -sin * dpr,
+          cos * dpr,
+          p.pos.x * dpr,
+          p.pos.y * dpr,
+        );
         ctx.drawImage(img, -half, -half, cssSize, cssSize);
       }
       ctx.setTransform(1, 0, 0, 1, 0, 0);
     }
     const bottomRowParticles = [];
     for (let i = 0; i < CONFIG.gridW; i++) {
-      bottomRowParticles.push(particles[getPointID(CONFIG.gridH - 1, i, CONFIG.gridH)]);
+      bottomRowParticles.push(
+        particles[getPointID(CONFIG.gridH - 1, i, CONFIG.gridH)],
+      );
     }
 
     function updateGuidePosition(avgBottomY) {
@@ -951,10 +996,14 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
     // (정지 상태 기준은 스크롤 진행률 0 — 좌우로 벌어지지 않은 초기 시점.)
     {
       const initialState = particles.map((p) => ({
-        x: p.pos.x, y: p.pos.y, ox: p.oldPos.x, oy: p.oldPos.y,
+        x: p.pos.x,
+        y: p.pos.y,
+        ox: p.oldPos.x,
+        oy: p.oldPos.y,
       }));
       const measureAvgBottom = () =>
-        bottomRowParticles.reduce((sum, p) => sum + p.pos.y, 0) / bottomRowParticles.length;
+        bottomRowParticles.reduce((sum, p) => sum + p.pos.y, 0) /
+        bottomRowParticles.length;
       const SETTLE_MAX_STEPS = 600; // 수렴하지 않아도 이 횟수에서 멈춘다
       const SETTLE_EPS = 0.02; // 단계 간 변화가 이보다 작으면 정지로 간주
       let prevAvg = null;
@@ -966,8 +1015,10 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
             p.oldPos.x = p.homeX;
           }
         }
-        for (const p of particles) p.update(CONFIG.gravity, CONFIG.damping, CONFIG.restoreStrength);
-        for (let k = 0; k < CONFIG.iterationsPerFrame; k++) for (const c of constraints) c.solve();
+        for (const p of particles)
+          p.update(CONFIG.gravity, CONFIG.damping, CONFIG.restoreStrength);
+        for (let k = 0; k < CONFIG.iterationsPerFrame; k++)
+          for (const c of constraints) c.solve();
         const avg = measureAvgBottom();
         if (prevAvg !== null && Math.abs(avg - prevAvg) < SETTLE_EPS) break;
         prevAvg = avg;
@@ -997,7 +1048,9 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
       // 보이지 않는 동안에는 물리·그리기를 모두 건너뛴다(스크롤을 되올려 커튼이
       // 다시 보이면 곧바로 재개된다).
       if (journeyProgressRef.current >= 1) return;
-      const spreadAmount = interpolateKeyframes(journeyProgressRef.current, CURTAIN_SPREAD_KF) * maxSpreadPx;
+      const spreadAmount =
+        interpolateKeyframes(journeyProgressRef.current, CURTAIN_SPREAD_KF) *
+        maxSpreadPx;
       for (const p of particles) {
         p.homeX = p.baseHomeX + p.spreadDir * spreadAmount;
         // 맨 위 고정줄은 물리 업데이트를 타지 않으므로(pinned은 update()에서 바로 반환),
@@ -1007,8 +1060,10 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
           p.oldPos.x = p.homeX;
         }
       }
-      for (const p of particles) p.update(CONFIG.gravity, CONFIG.damping, CONFIG.restoreStrength);
-      for (let k = 0; k < CONFIG.iterationsPerFrame; k++) for (const c of constraints) c.solve();
+      for (const p of particles)
+        p.update(CONFIG.gravity, CONFIG.damping, CONFIG.restoreStrength);
+      for (let k = 0; k < CONFIG.iterationsPerFrame; k++)
+        for (const c of constraints) c.solve();
       draw();
       // 안내 문구 위치는 위(헤드리스 정지 시뮬레이션)에서 이미 최종값으로 한 번
       // 고정했으므로, 매 프레임 갱신하지 않는다 — 낙하·상호작용으로 줄이 흔들려도
@@ -1049,10 +1104,14 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
       if (whiteLayerRef.current || backdropRef.current) {
         const ep = clamp01(p / ENTRANCE_PHASE_END);
         if (whiteLayerRef.current) {
-          whiteLayerRef.current.style.opacity = String(interpolateKeyframes(ep, KF.whiteOpacity));
+          whiteLayerRef.current.style.opacity = String(
+            interpolateKeyframes(ep, KF.whiteOpacity),
+          );
         }
         if (backdropRef.current) {
-          backdropRef.current.style.opacity = String(interpolateKeyframes(ep, KF.libraryOpacity));
+          backdropRef.current.style.opacity = String(
+            interpolateKeyframes(ep, KF.libraryOpacity),
+          );
           backdropRef.current.style.filter = `blur(${interpolateKeyframes(ep, KF.libraryBlur)}px)`;
         }
       }
@@ -1063,11 +1122,17 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
         const base = comparisonBaselineRef.current;
         let cp = 0;
         if (base !== null) {
-          const lp = clamp01((p - ENTRANCE_PHASE_END) / (1 - ENTRANCE_PHASE_END));
-          cp = clamp01((lp - base) / ((1 - base) * (1 - LIBRARY_COMPLETION_DWELL)));
+          const lp = clamp01(
+            (p - ENTRANCE_PHASE_END) / (1 - ENTRANCE_PHASE_END),
+          );
+          cp = clamp01(
+            (lp - base) / ((1 - base) * (1 - LIBRARY_COMPLETION_DWELL)),
+          );
         }
-        if (filledMaskRef.current) filledMaskRef.current.style.clipPath = `inset(0 ${(1 - cp) * 100}% 0 0)`;
-        if (sweepLineRef.current) sweepLineRef.current.style.left = `${cp * 100}%`;
+        if (filledMaskRef.current)
+          filledMaskRef.current.style.clipPath = `inset(0 ${(1 - cp) * 100}% 0 0)`;
+        if (sweepLineRef.current)
+          sweepLineRef.current.style.left = `${cp * 100}%`;
       }
       // 진행률이 사실상 그대로면(<0.0005) 렌더를 건너뛴다 — 주소창 토글 등으로
       // 스크롤 이벤트만 튀고 위치는 그대로인 경우의 헛된 재렌더를 막는다.
@@ -1103,7 +1168,8 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
   const handleActivate = useCallback(() => {
     if (activated) return;
     const canvas = canvasRef.current;
-    if (canvas && canvas.__applyActivationImpulse) canvas.__applyActivationImpulse();
+    if (canvas && canvas.__applyActivationImpulse)
+      canvas.__applyActivationImpulse();
     setShowRipple(true);
     setTimeout(() => setShowRipple(false), 650);
     onActivate();
@@ -1122,8 +1188,10 @@ function EntranceSection({ activated, onActivate, onSurveyOpen, onExplore, ctaRe
     handleActivateRef.current = handleActivate;
   }, [handleActivate]);
 
-return (
-    <section style={{ position: "relative", width: "100%", background: COLOR.white }}>
+  return (
+    <section
+      style={{ position: "relative", width: "100%", background: COLOR.white }}
+    >
       <div
         ref={journeyWrapRef}
         style={{
@@ -1139,7 +1207,14 @@ return (
           height: activated ? `calc(100dvh + ${TOTAL_SCROLL_VH}vh)` : "100dvh",
         }}
       >
-        <div style={{ position: "sticky", top: 0, height: "100dvh", overflow: "hidden" }}>
+        <div
+          style={{
+            position: "sticky",
+            top: 0,
+            height: "100dvh",
+            overflow: "hidden",
+          }}
+        >
           {/* 지붕 + 커튼 + 로고/버튼: 스크롤이 진행될수록 확대·소멸하며
              "버튼 속으로 들어가는" 느낌의 카메라 전진 효과를 만든다 */}
           <div
@@ -1153,7 +1228,12 @@ return (
               willChange: "transform, opacity",
             }}
           >
-            <div style={{ ...eStyles.gateHeader, height: roofHeight > 0 ? roofHeight : 340 }}>
+            <div
+              style={{
+                ...eStyles.gateHeader,
+                height: roofHeight > 0 ? roofHeight : 340,
+              }}
+            >
               <img
                 ref={roofRef}
                 src={roofImg}
@@ -1180,7 +1260,8 @@ return (
               ref={hostRef}
               style={{
                 ...eStyles.curtainHost,
-                width: roofWidth > 0 ? `${roofWidth * curtainWidthRatio}px` : "0px",
+                width:
+                  roofWidth > 0 ? `${roofWidth * curtainWidthRatio}px` : "0px",
                 top: curtainTop,
                 bottom: CURTAIN_BOTTOM_OFFSET,
                 zIndex: 3,
@@ -1198,12 +1279,15 @@ return (
             />
 
             {!activated && (
-              <button
+              <Button
+                variant="unstyled"
                 style={{
                   ...eStyles.entranceButton,
                   top: logoTop,
                 }}
                 onClick={handleActivate}
+                type="button"
+                aria-label="입구 열기"
                 onMouseEnter={() => {
                   const img = entranceLogoRef.current;
                   if (img) {
@@ -1216,7 +1300,8 @@ return (
                   const img = entranceLogoRef.current;
                   if (img) {
                     img.style.transform = "translate(-50%, -50%) scale(1)";
-                    img.style.filter = "drop-shadow(0 0 0px rgba(244,162,97,0))";
+                    img.style.filter =
+                      "drop-shadow(0 0 0px rgba(244,162,97,0))";
                   }
                 }}
               />
@@ -1241,14 +1326,21 @@ return (
             )}
           </div>
 
-          <div ref={guideRef} style={{ ...eStyles.guide, bottom: guideBottom, opacity: guideOpacity }}>
+          <div
+            ref={guideRef}
+            style={{
+              ...eStyles.guide,
+              bottom: guideBottom,
+              opacity: guideOpacity,
+            }}
+          >
             {activated
               ? scrollDirection === "up" && entranceProgress > 0
                 ? "위로 스크롤하여 서재 밖으로 나가세요"
                 : "아래로 스크롤하여 서재 안으로 들어가세요"
               : isMobile
-              ? "화면을 터치해 입구를 찾아보세요"
-              : "마우스를 움직여 입구를 찾아보세요"}
+                ? "화면을 터치해 입구를 찾아보세요"
+                : "마우스를 움직여 입구를 찾아보세요"}
           </div>
 
           {activated && (
@@ -1335,7 +1427,7 @@ const eStyles = {
     position: "absolute",
     left: "50%",
     transform: "translateX(-50%)",
-    overflow: "hidden"
+    overflow: "hidden",
   },
 
   entranceLogoImage: {
@@ -1424,8 +1516,17 @@ const ENTRANCE_PHASE_END = ENTRANCE_SCROLL_VH / TOTAL_SCROLL_VH;
 const GATE_KF = {
   // 0.55→0.4 지점에서 최대 배율 도달(확대 속도↑), 최대 배율 1.5→7(로고가 화면을
   // 가득 채울 정도로 커짐).
-  scale: [[0, 1], [0.4, 7], [1, 7]],
-  opacity: [[0, 1], [0.4, 1], [0.58, 0], [1, 0]],
+  scale: [
+    [0, 1],
+    [0.4, 7],
+    [1, 7],
+  ],
+  opacity: [
+    [0, 1],
+    [0.4, 1],
+    [0.58, 0],
+    [1, 0],
+  ],
 };
 // 안내 문구("아래로 스크롤하여 서재 안으로 들어가세요")는 지붕·커튼·로고 그룹
 // (GATE_KF.opacity, 0.58에서 완전히 사라짐)과 별개로 진행률 1(=리더기 부팅 시작,
@@ -1438,16 +1539,44 @@ const GATE_KF = {
 // 배치되므로(ReaderJourney의 rawMaxCenterY 계산 참고), 리더기가 다 떠오르기
 // 전이라도 화면상 서로 겹치는 자리에 있지 않다 — 시간상으로만 겹치고 공간상으로는
 // 겹치지 않는다.
-const GUIDE_OPACITY_KF = [[0, 1], [0.85, 1], [1, 0]];
+const GUIDE_OPACITY_KF = [
+  [0, 1],
+  [0.85, 1],
+  [1, 0],
+];
 // 버튼 속으로 다가갈수록(스크롤 진행률↑) 커튼 줄이 11자로(위아래 구분 없이 나란히)
 // 더 크게 벌어지도록 하는 0~1 정규화 계수 — 실제 픽셀 이동량은 maxSpreadPx를 곱해서 구한다
-const CURTAIN_SPREAD_KF = [[0, 0], [0.4, 1], [1, 1]];
+const CURTAIN_SPREAD_KF = [
+  [0, 0],
+  [0.4, 1],
+  [1, 1],
+];
 
 const KF = {
-  whiteOpacity: [[0, 0], [0.3, 0.25], [0.5, 0.75], [0.6, 1], [1, 1]],
-  libraryOpacity: [[0, 0], [0.55, 0], [0.7, 1], [1, 1]],
-  libraryBlur: [[0.6, 12], [0.8, 4], [1, 0]],
-  readerOpacity: [[0, 0], [0.75, 0], [0.9, 1], [1, 1]],
+  whiteOpacity: [
+    [0, 0],
+    [0.3, 0.25],
+    [0.5, 0.75],
+    [0.6, 1],
+    [1, 1],
+  ],
+  libraryOpacity: [
+    [0, 0],
+    [0.55, 0],
+    [0.7, 1],
+    [1, 1],
+  ],
+  libraryBlur: [
+    [0.6, 12],
+    [0.8, 4],
+    [1, 0],
+  ],
+  readerOpacity: [
+    [0, 0],
+    [0.75, 0],
+    [0.9, 1],
+    [1, 1],
+  ],
 };
 
 // memo: 스크롤 진행률에 따라 바뀌는 것은 opacity 하나뿐인데, 그 값은 이제 상위의
@@ -1456,8 +1585,21 @@ const KF = {
 // 프레임에서 React 재조정을 건너뛴다. 초기 opacity는 0(entranceProgress=0에서
 // whiteOpacity가 0)으로 두어 마운트 첫 프레임의 깜빡임을 막는다. React가 이후
 // 재렌더링하지 않으므로 이 초기값이 imperative 쓰기를 덮어쓰는 일도 없다.
-const WhiteTransitionLayer = memo(function WhiteTransitionLayer({ whiteLayerRef }) {
-  return <div ref={whiteLayerRef} style={{ position: "absolute", inset: 0, background: COLOR.white, opacity: 0, pointerEvents: "none" }} />;
+const WhiteTransitionLayer = memo(function WhiteTransitionLayer({
+  whiteLayerRef,
+}) {
+  return (
+    <div
+      ref={whiteLayerRef}
+      style={{
+        position: "absolute",
+        inset: 0,
+        background: COLOR.white,
+        opacity: 0,
+        pointerEvents: "none",
+      }}
+    />
+  );
 });
 // memo: opacity/blur는 이제 상위 스크롤 루프가 backdropRef로 직접 쓴다. 남은 prop
 // (isMobile, stableViewportHeight)은 스크롤 진행률이 아니라 화면/주소창 상태에서
@@ -1466,7 +1608,11 @@ const WhiteTransitionLayer = memo(function WhiteTransitionLayer({ whiteLayerRef 
 // 바뀌어 재렌더될 때(모바일 주소창 확장) 값이 초기값으로 리셋돼 배경이 한 프레임
 // 깜빡인다. 대신 마운트 시 useLayoutEffect로 초기값(진행률 0: opacity 0, blur 12)을
 // 한 번만 세팅하고, 이후엔 스크롤 루프가 갱신한다 — 재렌더가 이 값을 건드리지 않는다.
-const LibraryBackdrop = memo(function LibraryBackdrop({ isMobile, stableViewportHeight, backdropRef }) {
+const LibraryBackdrop = memo(function LibraryBackdrop({
+  isMobile,
+  stableViewportHeight,
+  backdropRef,
+}) {
   useLayoutEffect(() => {
     const el = backdropRef.current;
     if (!el) return;
@@ -1482,7 +1628,13 @@ const LibraryBackdrop = memo(function LibraryBackdrop({ isMobile, stableViewport
   // 배경이 확대·이동하지 않는다. 데스크톱은 주소창이 없어 종전대로 inset:0.
   const box =
     isMobile && stableViewportHeight
-      ? { position: "absolute", top: 0, left: 0, right: 0, height: stableViewportHeight }
+      ? {
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: stableViewportHeight,
+        }
       : { position: "absolute", inset: 0 };
   return (
     <div
@@ -1531,13 +1683,15 @@ const READER_MAX_HEIGHT = { desktop: 680, mobile: 560 };
  * 때는 자동으로 커진다
  */
 function computeReaderFrameSize(viewportWidth, viewportHeight, isMobile) {
-  const minH = isMobile ? READER_COMPACT_MIN_HEIGHT.mobile : READER_COMPACT_MIN_HEIGHT.desktop;
+  const minH = isMobile
+    ? READER_COMPACT_MIN_HEIGHT.mobile
+    : READER_COMPACT_MIN_HEIGHT.desktop;
   const maxH = isMobile ? READER_MAX_HEIGHT.mobile : READER_MAX_HEIGHT.desktop;
   const verticalReserve =
     2 *
     Math.max(
       READER_TOP_MARGIN + READER_HEADLINE_GAP + READER_HEADLINE_RESERVE,
-      READER_CAPTION_GAP + READER_CAPTION_RESERVE
+      READER_CAPTION_GAP + READER_CAPTION_RESERVE,
     );
   let height = clamp(viewportHeight - verticalReserve, minH, maxH);
   let width = height * READER_ASPECT_RATIO;
@@ -1594,16 +1748,26 @@ function ReaderJourney({
   // 그대로 있어 움직이지 않는다. 서재 구간은 아래로 스크롤해 들어오므로 이 시점의
   // 안정 높이는 이미 "주소창이 접힌" 실제 높이와 같다. 데스크톱은 주소창이 없어
   // 이 문제가 없으므로 종전대로 live viewportHeight를 그대로 쓴다.
-  const layoutHeight = isMobile ? (stableViewportHeight ?? viewportHeight) : viewportHeight;
+  const layoutHeight = isMobile
+    ? (stableViewportHeight ?? viewportHeight)
+    : viewportHeight;
   const { width: frameWidth, height: frameHeight } = computeReaderFrameSize(
     viewportWidth,
     layoutHeight,
-    isMobile
+    isMobile,
   );
   // 리더기를 화면 전체의 정중앙에 두되, 화면이 낮아 위쪽 헤드라인이나 아래쪽
   // 캡션(안내 문구/가치 설명/CTA)이 잘릴 상황에서만 그만큼 위/아래로 밀어 넣는다
-  const minCenterY = frameHeight / 2 + READER_TOP_MARGIN + READER_HEADLINE_GAP + READER_HEADLINE_RESERVE;
-  const rawMaxCenterY = layoutHeight - frameHeight / 2 - READER_CAPTION_GAP - READER_CAPTION_RESERVE;
+  const minCenterY =
+    frameHeight / 2 +
+    READER_TOP_MARGIN +
+    READER_HEADLINE_GAP +
+    READER_HEADLINE_RESERVE;
+  const rawMaxCenterY =
+    layoutHeight -
+    frameHeight / 2 -
+    READER_CAPTION_GAP -
+    READER_CAPTION_RESERVE;
   const maxCenterY = Math.max(minCenterY, rawMaxCenterY);
   const readerCenterY = clamp(layoutHeight / 2, minCenterY, maxCenterY);
   const readerBottomY = readerCenterY + frameHeight / 2;
@@ -1655,7 +1819,11 @@ function ReaderJourney({
           width: `min(${headlineWidth}px, 92vw)`,
         }}
       >
-        <ValueHeadline reveal={contentReveal} isMobile={isMobile} fontSize={headlineFontSize} />
+        <ValueHeadline
+          reveal={contentReveal}
+          isMobile={isMobile}
+          fontSize={headlineFontSize}
+        />
       </div>
       <div
         style={{
@@ -1686,8 +1854,16 @@ function ReaderJourney({
         }}
       >
         <LoadingGuide visible={booting && !bootDone} fontSize={guideFontSize} />
-        <ComparisonGuide reveal={libraryGuideReveal} fontSize={guideFontSize} scrollDirection={scrollDirection} />
-        <CTAGuide reveal={contentReveal} isMobile={isMobile} fontSize={guideFontSize} />
+        <ComparisonGuide
+          reveal={libraryGuideReveal}
+          fontSize={guideFontSize}
+          scrollDirection={scrollDirection}
+        />
+        <CTAGuide
+          reveal={contentReveal}
+          isMobile={isMobile}
+          fontSize={guideFontSize}
+        />
       </div>
       <div
         style={{
@@ -1743,13 +1919,17 @@ function ReaderBootScreen({ onComplete, screenWidth, screenHeight }) {
   const logoSize = clamp(
     Math.round(Math.min(screenWidth * 0.7, screenHeight * 0.44)),
     72,
-    220
+    220,
   );
 
   return (
     <div style={bootStyles.wrap}>
       <div style={bootStyles.mark}>
-        <img src={entranceLogoImg} alt="Silock 로고" style={{ ...bootStyles.logoImg, width: logoSize, height: logoSize }} />
+        <img
+          src={entranceLogoImg}
+          alt="Silock 로고"
+          style={{ ...bootStyles.logoImg, width: logoSize, height: logoSize }}
+        />
       </div>
       <div style={bootStyles.dots}>
         <span style={{ ...bootStyles.dot, animationDelay: "0ms" }} />
@@ -1760,11 +1940,32 @@ function ReaderBootScreen({ onComplete, screenWidth, screenHeight }) {
   );
 }
 const bootStyles = {
-  wrap: { position: "absolute", inset: 0, background: COLOR.black, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 18, animation: "boot-brightness 1.4s ease-out forwards" },
-  mark: { display: "flex", flexDirection: "column", alignItems: "center", animation: "mark-pop 700ms ease-out both" },
+  wrap: {
+    position: "absolute",
+    inset: 0,
+    background: COLOR.black,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 18,
+    animation: "boot-brightness 1.4s ease-out forwards",
+  },
+  mark: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    animation: "mark-pop 700ms ease-out both",
+  },
   logoImg: { objectFit: "contain" },
   dots: { display: "flex", gap: 6 },
-  dot: { width: 5, height: 5, borderRadius: "50%", background: "#ffffff88", animation: "boot-dot 900ms ease-in-out infinite" },
+  dot: {
+    width: 5,
+    height: 5,
+    borderRadius: "50%",
+    background: "#ffffff88",
+    animation: "boot-dot 900ms ease-in-out infinite",
+  },
 };
 
 // ============================================================
@@ -1807,7 +2008,13 @@ function LibraryScreenChrome({ totalCount, pageLabel = "1 / 1", children }) {
 function HomeGlyph() {
   return (
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
-      <path d="M4 11L12 4l8 7M6 10v9a1 1 0 0 0 1 1h3v-6h4v6h3a1 1 0 0 0 1-1v-9" stroke={COLOR.black} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M4 11L12 4l8 7M6 10v9a1 1 0 0 0 1 1h3v-6h4v6h3a1 1 0 0 0 1-1v-9"
+        stroke={COLOR.black}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -1815,24 +2022,57 @@ function SearchGlyph() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
       <circle cx="11" cy="11" r="7" stroke={COLOR.black} strokeWidth="1.8" />
-      <path d="M20 20l-4.35-4.35" stroke={COLOR.black} strokeWidth="1.8" strokeLinecap="round" />
+      <path
+        d="M20 20l-4.35-4.35"
+        stroke={COLOR.black}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
 function MenuGlyph() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <path d="M4 6h16M4 12h16M4 18h16" stroke={COLOR.black} strokeWidth="1.8" strokeLinecap="round" />
+      <path
+        d="M4 6h16M4 12h16M4 18h16"
+        stroke={COLOR.black}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
 function DeletedDocGlyph({ size = 42 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <path d="M7 3h6l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" fill={COLOR.white} stroke={COLOR.black} strokeWidth="1.3" strokeLinejoin="round" />
-      <path d="M9 10.5h6M9 13.5h6M9 16.5h3" stroke={COLOR.neutralGray} strokeWidth="1.2" strokeLinecap="round" />
-      <circle cx="17.5" cy="18.5" r="4" fill={COLOR.white} stroke={COLOR.black} strokeWidth="1.3" />
-      <path d="M16 17l3 3M19 17l-3 3" stroke={COLOR.black} strokeWidth="1.1" strokeLinecap="round" />
+      <path
+        d="M7 3h6l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"
+        fill={COLOR.white}
+        stroke={COLOR.black}
+        strokeWidth="1.3"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M9 10.5h6M9 13.5h6M9 16.5h3"
+        stroke={COLOR.neutralGray}
+        strokeWidth="1.2"
+        strokeLinecap="round"
+      />
+      <circle
+        cx="17.5"
+        cy="18.5"
+        r="4"
+        fill={COLOR.white}
+        stroke={COLOR.black}
+        strokeWidth="1.3"
+      />
+      <path
+        d="M16 17l3 3M19 17l-3 3"
+        stroke={COLOR.black}
+        strokeWidth="1.1"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
@@ -1851,7 +2091,9 @@ const EmptyLibrary = memo(function EmptyLibrary({ screenWidth, screenHeight }) {
       <div style={libStyles.emptyBody}>
         <div style={libStyles.emptyBox}>
           <DeletedDocGlyph size={glyphSize} />
-          <p style={{ ...libStyles.emptyBoxTitle, fontSize: titleSize }}>삭제된 콘텐츠</p>
+          <p style={{ ...libStyles.emptyBoxTitle, fontSize: titleSize }}>
+            삭제된 콘텐츠
+          </p>
         </div>
       </div>
     </LibraryScreenChrome>
@@ -1862,8 +2104,18 @@ const EmptyLibrary = memo(function EmptyLibrary({ screenWidth, screenHeight }) {
 function PaisleyGlyph({ accent }) {
   return (
     <svg width="20" height="26" viewBox="0 0 32 44" fill="none">
-      <path d="M16 2a12 12 0 1 1 -8.5 20.49" stroke={accent} strokeWidth="1.4" strokeLinecap="round" />
-      <path d="M7.5 22.5V33a6 6 0 0 0 6 6h6" stroke={accent} strokeWidth="1.4" strokeLinecap="round" />
+      <path
+        d="M16 2a12 12 0 1 1 -8.5 20.49"
+        stroke={accent}
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+      <path
+        d="M7.5 22.5V33a6 6 0 0 0 6 6h6"
+        stroke={accent}
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
       <circle cx="12" cy="27" r="3.2" fill={accent} />
     </svg>
   );
@@ -1872,7 +2124,14 @@ function PaisleyGlyph({ accent }) {
 function FrameGlyph({ accent }) {
   return (
     <svg width="20" height="20" viewBox="0 0 32 32" fill="none">
-      <rect x="7" y="7" width="18" height="18" stroke={accent} strokeWidth="1.2" />
+      <rect
+        x="7"
+        y="7"
+        width="18"
+        height="18"
+        stroke={accent}
+        strokeWidth="1.2"
+      />
       <path
         d="M7 3v3M7 3h3M25 3v3M25 3h-3M7 29v-3M7 29h3M25 29v-3M25 29h-3"
         stroke={accent}
@@ -1894,16 +2153,45 @@ function LineGlyph({ accent }) {
 function TriangleGlyph({ accent }) {
   return (
     <svg width="22" height="20" viewBox="0 0 32 28" fill="none">
-      <path d="M16 2L30 26H2Z" stroke={accent} strokeWidth="1.4" strokeLinejoin="round" />
+      <path
+        d="M16 2L30 26H2Z"
+        stroke={accent}
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
 
 const FILLED_BOOKS = [
-  { label: "vol.01", bg: "#ECE0CE", accent: "#8A6248", textColor: "rgba(90,58,34,0.85)", Icon: PaisleyGlyph },
-  { label: "vol.02", bg: "#6C7159", accent: "#D8D3BC", textColor: "rgba(255,255,255,0.92)", Icon: FrameGlyph },
-  { label: "vol.03", bg: "#1E2A3D", accent: "#FFFFFF", textColor: "rgba(255,255,255,0.92)", Icon: LineGlyph },
-  { label: "vol.04", bg: "#4A5A63", accent: "#E4DCC9", textColor: "rgba(255,255,255,0.92)", Icon: TriangleGlyph },
+  {
+    label: "vol.01",
+    bg: "#ECE0CE",
+    accent: "#8A6248",
+    textColor: "rgba(90,58,34,0.85)",
+    Icon: PaisleyGlyph,
+  },
+  {
+    label: "vol.02",
+    bg: "#6C7159",
+    accent: "#D8D3BC",
+    textColor: "rgba(255,255,255,0.92)",
+    Icon: FrameGlyph,
+  },
+  {
+    label: "vol.03",
+    bg: "#1E2A3D",
+    accent: "#FFFFFF",
+    textColor: "rgba(255,255,255,0.92)",
+    Icon: LineGlyph,
+  },
+  {
+    label: "vol.04",
+    bg: "#4A5A63",
+    accent: "#E4DCC9",
+    textColor: "rgba(255,255,255,0.92)",
+    Icon: TriangleGlyph,
+  },
 ];
 
 function FilledBookCover({ book, index }) {
@@ -1921,8 +2209,12 @@ function FilledBookCover({ book, index }) {
         <Icon accent={book.accent} />
       </div>
       <div style={libStyles.bookFooter}>
-        <span style={{ ...libStyles.bookVol, color: book.textColor }}>{book.label}</span>
-        <span style={{ ...libStyles.bookWordmark, color: book.textColor }}>silock</span>
+        <span style={{ ...libStyles.bookVol, color: book.textColor }}>
+          {book.label}
+        </span>
+        <span style={{ ...libStyles.bookWordmark, color: book.textColor }}>
+          silock
+        </span>
       </div>
     </div>
   );
@@ -1953,11 +2245,19 @@ const FilledLibrary = memo(function FilledLibrary() {
 // (screenWidth/screenHeight는 리더기 프레임 크기라 스크롤 중 고정, ref는 정체성 고정)
 // 최초 1회만 렌더링된다. 초기 스타일은 진행률 0(채우기 완전 클립 = 빈 서재만 보임,
 // sweep line 왼쪽 끝)으로 두어 루프의 첫 쓰기 전에도 올바르게 시작한다.
-const LibraryComparison = memo(function LibraryComparison({ filledMaskRef, sweepLineRef, screenWidth, screenHeight }) {
+const LibraryComparison = memo(function LibraryComparison({
+  filledMaskRef,
+  sweepLineRef,
+  screenWidth,
+  screenHeight,
+}) {
   return (
     <div style={libStyles.comparisonArea}>
       <EmptyLibrary screenWidth={screenWidth} screenHeight={screenHeight} />
-      <div ref={filledMaskRef} style={{ ...libStyles.filledMask, clipPath: "inset(0 100% 0 0)" }}>
+      <div
+        ref={filledMaskRef}
+        style={{ ...libStyles.filledMask, clipPath: "inset(0 100% 0 0)" }}
+      >
         <FilledLibrary />
       </div>
       {/* 진행률 확인용 시각 인디케이터 (실제 배포 시 제거 가능) */}
@@ -1967,21 +2267,94 @@ const LibraryComparison = memo(function LibraryComparison({ filledMaskRef, sweep
 });
 
 const libStyles = {
-  screenBase: { position: "absolute", inset: 0, display: "flex", flexDirection: "column", background: COLOR.white, overflow: "hidden" },
-  topBar: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "15px 18px 8px", flexShrink: 0 },
+  screenBase: {
+    position: "absolute",
+    inset: 0,
+    display: "flex",
+    flexDirection: "column",
+    background: COLOR.white,
+    overflow: "hidden",
+  },
+  topBar: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "15px 18px 8px",
+    flexShrink: 0,
+  },
   topBarLeft: { display: "flex", alignItems: "center", gap: 8 },
-  screenTitle: { fontSize: 18, fontWeight: 800, color: COLOR.black, letterSpacing: "-0.01em" },
+  screenTitle: {
+    fontSize: 18,
+    fontWeight: 800,
+    color: COLOR.black,
+    letterSpacing: "-0.01em",
+  },
   topBarRight: { display: "flex", alignItems: "center", gap: 14 },
-  subBar: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 18px 10px", fontSize: 12, color: "#9a9a9a", flexShrink: 0 },
+  subBar: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "0 18px 10px",
+    fontSize: 12,
+    color: "#9a9a9a",
+    flexShrink: 0,
+  },
   subBarLeft: { display: "flex", alignItems: "center", gap: 9 },
   subBarDivider: { width: 1, height: 12, background: "#dcdcdc" },
-  subBarRight: { display: "flex", alignItems: "center", gap: 12, color: "#5a5a5a", fontWeight: 600 },
-  divider: { height: 1, background: "#ececec", margin: "0 12px", flexShrink: 0 },
-  emptyBody: { flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", padding: "10px 14px" },
-  emptyBox: { width: "100%", height: "100%", borderRadius: 10, border: `1.3px dashed ${COLOR.neutralGray}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 },
-  emptyBoxTitle: { margin: 0, fontSize: 17, fontWeight: 700, color: COLOR.black },
-  pageIndicator: { textAlign: "center", fontSize: 8, color: "#b8b8b8", padding: "5px 0 9px", flexShrink: 0 },
-  bookGridWrap: { flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", padding: "12px 20px", overflow: "hidden" },
+  subBarRight: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    color: "#5a5a5a",
+    fontWeight: 600,
+  },
+  divider: {
+    height: 1,
+    background: "#ececec",
+    margin: "0 12px",
+    flexShrink: 0,
+  },
+  emptyBody: {
+    flex: 1,
+    minHeight: 0,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "10px 14px",
+  },
+  emptyBox: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 10,
+    border: `1.3px dashed ${COLOR.neutralGray}`,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 16,
+  },
+  emptyBoxTitle: {
+    margin: 0,
+    fontSize: 17,
+    fontWeight: 700,
+    color: COLOR.black,
+  },
+  pageIndicator: {
+    textAlign: "center",
+    fontSize: 8,
+    color: "#b8b8b8",
+    padding: "5px 0 9px",
+    flexShrink: 0,
+  },
+  bookGridWrap: {
+    flex: 1,
+    minHeight: 0,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "12px 20px",
+    overflow: "hidden",
+  },
   // 2×2 책 그리드가 리더기 화면의 남은 세로 공간(상단 바·페이지 표시를 뺀 영역)을
   // 절대 넘지 않도록 "contain"으로 배치한다. 예전에는 그리드 폭(width:100%)과 각
   // 표지의 aspectRatio만으로 높이가 정해져, 화면이 낮은 모바일에서 2행 높이가
@@ -2010,13 +2383,27 @@ const libStyles = {
     padding: "8px 7px 6px",
     boxShadow: "0 4px 10px rgba(0,0,0,0.14)",
   },
-  bookIconWrap: { flex: 1, display: "flex", alignItems: "center", justifyContent: "center" },
+  bookIconWrap: {
+    flex: 1,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   bookFooter: { display: "flex", flexDirection: "column", gap: 2 },
   bookVol: { fontSize: 7, fontWeight: 600, letterSpacing: "0.02em" },
   bookWordmark: { fontSize: 8, fontWeight: 800, letterSpacing: "0.01em" },
   comparisonArea: { position: "absolute", inset: 0, pointerEvents: "none" },
   filledMask: { position: "absolute", inset: 0, willChange: "clip-path" },
-  sweepLine: { position: "absolute", top: 0, bottom: 0, width: 2, background: COLOR.orange, opacity: 0.5, pointerEvents: "none", transform: "translateX(-1px)" },
+  sweepLine: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    width: 2,
+    background: COLOR.orange,
+    opacity: 0.5,
+    pointerEvents: "none",
+    transform: "translateX(-1px)",
+  },
 };
 
 // ============================================================
@@ -2032,7 +2419,14 @@ function LoadingGuide({ visible, fontSize }) {
 
 function ComparisonGuide({ reveal, fontSize, scrollDirection }) {
   return (
-    <div style={{ ...guideStyles.wrap, fontSize, opacity: reveal, pointerEvents: reveal > 0.05 ? "auto" : "none" }}>
+    <div
+      style={{
+        ...guideStyles.wrap,
+        fontSize,
+        opacity: reveal,
+        pointerEvents: reveal > 0.05 ? "auto" : "none",
+      }}
+    >
       {scrollDirection === "up" ? (
         <>
           <span className="silock-copy-segment">위로 스크롤하여</span>{" "}
@@ -2053,7 +2447,7 @@ const guideStyles = {
     color: COLOR.black,
     textAlign: "center",
     marginTop: 0,
-    transition: "opacity 300ms ease-out"
+    transition: "opacity 300ms ease-out",
   },
 };
 
@@ -2117,9 +2511,18 @@ const valueStyles = {
   },
 };
 
-function SurveyCTA({ reveal, active, onClick, buttonRef, fontSize, height, paddingInline }) {
+function SurveyCTA({
+  reveal,
+  active,
+  onClick,
+  buttonRef,
+  fontSize,
+  height,
+  paddingInline,
+}) {
   return (
-    <button
+    <Button
+      variant="unstyled"
       ref={buttonRef}
       type="button"
       onClick={onClick}
@@ -2135,17 +2538,30 @@ function SurveyCTA({ reveal, active, onClick, buttonRef, fontSize, height, paddi
       }}
     >
       참여하기
-      <svg width="1.1em" height="1.1em" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <path d="M5 12h14M14 7l5 5-5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <svg
+        width="1.1em"
+        height="1.1em"
+        viewBox="0 0 24 24"
+        fill="none"
+        aria-hidden="true"
+      >
+        <path
+          d="M5 12h14M14 7l5 5-5 5"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       </svg>
-    </button>
+    </Button>
   );
 }
 
 function ExploreArrow({ reveal, active, onClick, top, fontSize }) {
   const iconSize = fontSize + 5;
   return (
-    <button
+    <Button
+      variant="unstyled"
       type="button"
       className="silock-explore-arrow"
       onClick={onClick}
@@ -2161,10 +2577,22 @@ function ExploreArrow({ reveal, active, onClick, top, fontSize }) {
       }}
     >
       <span>더 알아보기</span>
-      <svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <svg
+        width={iconSize}
+        height={iconSize}
+        viewBox="0 0 24 24"
+        fill="none"
+        aria-hidden="true"
+      >
+        <path
+          d="M6 9l6 6 6-6"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       </svg>
-    </button>
+    </Button>
   );
 }
 const ctaStyles = {
@@ -2182,7 +2610,8 @@ const ctaStyles = {
     justifyContent: "center",
     gap: "0.55em",
     cursor: "pointer",
-    transition: "opacity 400ms ease-out, transform 400ms ease-out, box-shadow 200ms",
+    transition:
+      "opacity 400ms ease-out, transform 400ms ease-out, box-shadow 200ms",
     boxShadow: `0 10px 24px ${COLOR.orange}4d`,
   },
   exploreArrow: {
@@ -2199,7 +2628,8 @@ const ctaStyles = {
     color: COLOR.white,
     fontWeight: 700,
     cursor: "pointer",
-    transition: "opacity 400ms ease-out, transform 400ms ease-out, color 180ms ease",
+    transition:
+      "opacity 400ms ease-out, transform 400ms ease-out, color 180ms ease",
   },
 };
 
@@ -2215,7 +2645,15 @@ const ctaStyles = {
 // 단위로는 고정(booting/bootDone은 단계 전환 때만, width/height는 안정 높이 기준,
 // 콜백·ref는 정체성 고정)이다. 따라서 부모(ReaderJourney)가 매 프레임 다시 그려져도
 // 이 서브트리 전체는 재조정을 건너뛴다 — 측정에서 확인한 프레임 비용의 핵심을 제거.
-const ReaderDevice = memo(function ReaderDevice({ booting, bootDone, onBootComplete, filledMaskRef, sweepLineRef, width, height }) {
+const ReaderDevice = memo(function ReaderDevice({
+  booting,
+  bootDone,
+  onBootComplete,
+  filledMaskRef,
+  sweepLineRef,
+  width,
+  height,
+}) {
   const radius = clamp(Math.round(height * 0.063), 18, 34);
   const padTop = clamp(Math.round(height * 0.04), 12, 24);
   const padSide = clamp(Math.round(width * 0.048), 10, 20);
@@ -2237,10 +2675,19 @@ const ReaderDevice = memo(function ReaderDevice({ booting, bootDone, onBootCompl
       <div style={readerStyles.screen}>
         {bootDone ? (
           <div style={readerStyles.powerOnScreen}>
-            <LibraryComparison filledMaskRef={filledMaskRef} sweepLineRef={sweepLineRef} screenWidth={screenWidth} screenHeight={screenHeight} />
+            <LibraryComparison
+              filledMaskRef={filledMaskRef}
+              sweepLineRef={sweepLineRef}
+              screenWidth={screenWidth}
+              screenHeight={screenHeight}
+            />
           </div>
         ) : booting ? (
-          <ReaderBootScreen onComplete={onBootComplete} screenWidth={screenWidth} screenHeight={screenHeight} />
+          <ReaderBootScreen
+            onComplete={onBootComplete}
+            screenWidth={screenWidth}
+            screenHeight={screenHeight}
+          />
         ) : (
           // 서재 진입 직후 리더기가 막 등장했을 때는 아직 부팅 전 — 서재 목록이
           // 아니라 아직 켜지지 않은 검은 화면으로 보여야 자연스럽다
@@ -2253,10 +2700,22 @@ const ReaderDevice = memo(function ReaderDevice({ booting, bootDone, onBootCompl
 });
 const readerStyles = {
   frame: {
-    border: `2px solid ${COLOR.black}`, background: COLOR.white,
-    boxShadow: "0 30px 60px rgba(0,0,0,0.12)", display: "flex", flexDirection: "column", alignItems: "center",
+    border: `2px solid ${COLOR.black}`,
+    background: COLOR.white,
+    boxShadow: "0 30px 60px rgba(0,0,0,0.12)",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
   },
-  screen: { position: "relative", width: "100%", flex: 1, borderRadius: 10, overflow: "hidden", background: COLOR.black, border: `1px solid ${COLOR.neutralGray}` },
+  screen: {
+    position: "relative",
+    width: "100%",
+    flex: 1,
+    borderRadius: 10,
+    overflow: "hidden",
+    background: COLOR.black,
+    border: `1px solid ${COLOR.neutralGray}`,
+  },
   powerOnScreen: {
     position: "absolute",
     inset: 0,
@@ -2265,7 +2724,13 @@ const readerStyles = {
     transformOrigin: "center",
     animation: "screen-power-on 860ms cubic-bezier(0.22, 1, 0.36, 1) both",
   },
-  homeButton: { marginTop: 12, width: 10, height: 10, borderRadius: "50%", border: `1.5px solid ${COLOR.neutralGray}` },
+  homeButton: {
+    marginTop: 12,
+    width: 10,
+    height: 10,
+    borderRadius: "50%",
+    border: `1.5px solid ${COLOR.neutralGray}`,
+  },
 };
 
 // 진행률(0~1, 리더기 구간 로컬 기준) 구간별로 무엇이 바뀌는지 정의한다
@@ -2273,7 +2738,10 @@ const readerStyles = {
 //  - contentRevealStart~contentRevealAt: 완성 화면의 문구·버튼이 서서히 나타나는
 //    비교 진행률 구간(70%에서 나타나기 시작해 90%에서 완전히 보인다)
 const LIBRARY_KF = {
-  comparison: [[0.08, 0], [0.55, 1]],
+  comparison: [
+    [0.08, 0],
+    [0.55, 1],
+  ],
   contentRevealStart: 0.7,
   contentRevealAt: 0.9,
 };
@@ -2305,9 +2773,29 @@ function readSurveyCompleted() {
   }
 }
 
+function subscribeSurveyCompleted(listener) {
+  window.addEventListener("storage", listener);
+  window.addEventListener("silock-survey-completed", listener);
+  return () => {
+    window.removeEventListener("storage", listener);
+    window.removeEventListener("silock-survey-completed", listener);
+  };
+}
+
+function subscribeLowPower(listener) {
+  const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+  query.addEventListener("change", listener);
+  return () => query.removeEventListener("change", listener);
+}
+
+function serverFalse() {
+  return false;
+}
+
 function saveSurveyCompleted() {
   try {
     window.localStorage.setItem(SURVEY_COMPLETED_STORAGE_KEY, "true");
+    window.dispatchEvent(new Event("silock-survey-completed"));
   } catch {
     // 저장소가 차단된 환경에서는 현재 세션의 React 상태만 사용한다.
   }
@@ -2339,7 +2827,12 @@ function FormFallback({ formUrl }) {
         <br />
         네트워크 상태를 확인하거나 새 창에서 열어 주세요
       </p>
-      <a href={formUrl.replace("&embedded=true", "")} target="_blank" rel="noreferrer" style={modalStyles.fallbackLink}>
+      <a
+        href={formUrl.replace("&embedded=true", "")}
+        target="_blank"
+        rel="noreferrer"
+        style={modalStyles.fallbackLink}
+      >
         새 창에서 참여하기
       </a>
     </div>
@@ -2381,7 +2874,11 @@ function SurveyModal({ open, onClose, onComplete, returnFocusRef }) {
     if (!open) return;
     const container = containerRef.current;
     const focusables = () =>
-      container ? container.querySelectorAll('button, a[href], iframe, [tabindex]:not([tabindex="-1"])') : [];
+      container
+        ? container.querySelectorAll(
+            'button, a[href], iframe, [tabindex]:not([tabindex="-1"])',
+          )
+        : [];
 
     const first = focusables()[0];
     first && first.focus();
@@ -2431,20 +2928,35 @@ function SurveyModal({ open, onClose, onComplete, returnFocusRef }) {
           <div style={modalStyles.brandGroup}>
             <KeyholeSquareIcon size={34} filled />
             <div>
-              <span id="survey-modal-title" style={modalStyles.title}>설문 참여</span>
+              <span id="survey-modal-title" style={modalStyles.title}>
+                설문 참여
+              </span>
               <p style={modalStyles.meta}>약 3분 · Google Forms로 응답 수집</p>
             </div>
           </div>
-          <button type="button" onClick={onClose} aria-label="닫기" style={modalStyles.closeBtn}>
+          <Button
+            variant="unstyled"
+            type="button"
+            onClick={onClose}
+            aria-label="닫기"
+            style={modalStyles.closeBtn}
+          >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <path d="M5 5l14 14M19 5L5 19" stroke={COLOR.black} strokeWidth="1.8" strokeLinecap="round" />
+              <path
+                d="M5 5l14 14M19 5L5 19"
+                stroke={COLOR.black}
+                strokeWidth="1.8"
+                strokeLinecap="round"
+              />
             </svg>
-          </button>
+          </Button>
         </div>
 
         <div className="silock-survey-trust" style={modalStyles.trustBar}>
           <span style={modalStyles.providerBadge}>GOOGLE FORMS</span>
-          <span>응답은 서비스 수요 검증과 MVP 우선순위 결정에만 사용됩니다</span>
+          <span>
+            응답은 서비스 수요 검증과 MVP 우선순위 결정에만 사용됩니다
+          </span>
         </div>
 
         <div style={modalStyles.body} className="silock-modal-body">
@@ -2452,7 +2964,9 @@ function SurveyModal({ open, onClose, onComplete, returnFocusRef }) {
             <FormFallback formUrl={GOOGLE_FORM_URL} />
           ) : (
             <>
-              {formStatus === "loading" && <div style={modalStyles.loadingHint}>불러오는 중…</div>}
+              {formStatus === "loading" && (
+                <div style={modalStyles.loadingHint}>불러오는 중…</div>
+              )}
               <GoogleFormEmbed
                 formUrl={GOOGLE_FORM_URL}
                 onLoad={() => {
@@ -2463,7 +2977,8 @@ function SurveyModal({ open, onClose, onComplete, returnFocusRef }) {
                   // 버튼을 직접 누르는 것으로만 처리한다 — 여기서는 로딩/에러
                   // 상태만 갱신한다.
                   setFormStatus("loaded");
-                  if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
+                  if (errorTimerRef.current)
+                    clearTimeout(errorTimerRef.current);
                 }}
                 onError={() => setFormStatus("error")}
               />
@@ -2473,9 +2988,14 @@ function SurveyModal({ open, onClose, onComplete, returnFocusRef }) {
 
         <div style={modalStyles.actionBar} className="silock-survey-actionbar">
           <span style={modalStyles.actionHint}>설문 제출까지 마치셨나요?</span>
-          <button type="button" onClick={onComplete} style={modalStyles.confirmBtn}>
+          <Button
+            variant="unstyled"
+            type="button"
+            onClick={onComplete}
+            style={modalStyles.confirmBtn}
+          >
             제출을 완료했어요
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -2483,54 +3003,190 @@ function SurveyModal({ open, onClose, onComplete, returnFocusRef }) {
 }
 
 const modalStyles = {
-  overlay: { position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center" },
-  backdrop: { position: "absolute", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(12px)", animation: "modal-backdrop-in 300ms ease-out" },
+  overlay: {
+    position: "fixed",
+    inset: 0,
+    zIndex: 50,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  backdrop: {
+    position: "absolute",
+    inset: 0,
+    background: "rgba(0,0,0,0.6)",
+    backdropFilter: "blur(12px)",
+    animation: "modal-backdrop-in 300ms ease-out",
+  },
   container: {
-    position: "relative", background: COLOR.white,
-    minHeight: 0, boxShadow: "0 30px 80px rgba(0,0,0,0.35)", display: "flex", flexDirection: "column", overflow: "hidden",
+    position: "relative",
+    background: COLOR.white,
+    minHeight: 0,
+    boxShadow: "0 30px 80px rgba(0,0,0,0.35)",
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
     animation: "modal-pop-in 260ms ease-out",
   },
-  header: { minHeight: 74, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 18, padding: "12px 18px", borderBottom: `1px solid ${COLOR.neutralGray}` },
+  header: {
+    minHeight: 74,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 18,
+    padding: "12px 18px",
+    borderBottom: `1px solid ${COLOR.neutralGray}`,
+  },
   brandGroup: { minWidth: 0, display: "flex", alignItems: "center", gap: 13 },
-  title: { display: "block", fontSize: 15, fontWeight: 800, color: COLOR.black, lineHeight: 1.3 },
+  title: {
+    display: "block",
+    fontSize: 15,
+    fontWeight: 800,
+    color: COLOR.black,
+    lineHeight: 1.3,
+  },
   meta: { margin: "4px 0 0", color: "#777", fontSize: 11, lineHeight: 1.4 },
-  closeBtn: { width: 32, height: 32, minWidth: 44, minHeight: 44, display: "flex", alignItems: "center", justifyContent: "center", border: "none", background: "transparent", cursor: "pointer", borderRadius: 8 },
-  trustBar: { minHeight: 42, display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "8px 18px", background: "#FFF7F0", borderBottom: "1px solid rgba(255,106,0,0.16)", color: "#5E4A3D", fontSize: 11, lineHeight: 1.45, textAlign: "center" },
-  providerBadge: { flexShrink: 0, padding: "4px 7px", border: "1px solid rgba(255,106,0,0.38)", color: COLOR.orange, fontSize: 9, fontWeight: 900, lineHeight: 1, letterSpacing: "0.08em" },
-  body: { position: "relative", flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" },
-  iframe: { width: "100%", height: "100%", minHeight: 0, flex: "1 1 0", border: "none" },
-  loadingHint: { position: "absolute", top: 18, left: 18, fontSize: 12, color: "#9a9a9a" },
-  fallback: { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, padding: "40px 12px", textAlign: "center" },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    minWidth: 44,
+    minHeight: 44,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    border: "none",
+    background: "transparent",
+    cursor: "pointer",
+    borderRadius: 8,
+  },
+  trustBar: {
+    minHeight: 42,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    padding: "8px 18px",
+    background: "#FFF7F0",
+    borderBottom: "1px solid rgba(255,106,0,0.16)",
+    color: "#5E4A3D",
+    fontSize: 11,
+    lineHeight: 1.45,
+    textAlign: "center",
+  },
+  providerBadge: {
+    flexShrink: 0,
+    padding: "4px 7px",
+    border: "1px solid rgba(255,106,0,0.38)",
+    color: COLOR.orange,
+    fontSize: 9,
+    fontWeight: 900,
+    lineHeight: 1,
+    letterSpacing: "0.08em",
+  },
+  body: {
+    position: "relative",
+    flex: 1,
+    minHeight: 0,
+    overflow: "hidden",
+    display: "flex",
+    flexDirection: "column",
+  },
+  iframe: {
+    width: "100%",
+    height: "100%",
+    minHeight: 0,
+    flex: "1 1 0",
+    border: "none",
+  },
+  loadingHint: {
+    position: "absolute",
+    top: 18,
+    left: 18,
+    fontSize: 12,
+    color: "#9a9a9a",
+  },
+  fallback: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 14,
+    padding: "40px 12px",
+    textAlign: "center",
+  },
   fallbackText: { fontSize: 13, color: "#666", lineHeight: 1.6, margin: 0 },
-  fallbackLink: { padding: "10px 20px", borderRadius: 999, background: COLOR.orange, color: COLOR.white, fontSize: 13, fontWeight: 700, textDecoration: "none" },
-  actionBar: { flexShrink: 0, display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: "8px 14px", padding: "12px 18px", borderTop: `1px solid ${COLOR.neutralGray}`, background: COLOR.white },
+  fallbackLink: {
+    padding: "10px 20px",
+    borderRadius: 999,
+    background: COLOR.orange,
+    color: COLOR.white,
+    fontSize: 13,
+    fontWeight: 700,
+    textDecoration: "none",
+  },
+  actionBar: {
+    flexShrink: 0,
+    display: "flex",
+    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "8px 14px",
+    padding: "12px 18px",
+    borderTop: `1px solid ${COLOR.neutralGray}`,
+    background: COLOR.white,
+  },
   actionHint: { color: "#777", fontSize: 12, lineHeight: 1.4 },
-  confirmBtn: { flexShrink: 0, padding: "10px 20px", border: "none", borderRadius: 999, background: COLOR.orange, color: COLOR.white, fontSize: 13, fontWeight: 700, letterSpacing: "-0.01em", cursor: "pointer" },
+  confirmBtn: {
+    flexShrink: 0,
+    padding: "10px 20px",
+    border: "none",
+    borderRadius: 999,
+    background: COLOR.orange,
+    color: COLOR.white,
+    fontSize: 13,
+    fontWeight: 700,
+    letterSpacing: "-0.01em",
+    cursor: "pointer",
+  },
 };
 
 const BRAND_VALUES = [
   {
     number: "01",
     title: "지속 소장",
-    description: "Silock에서 구매한 콘텐츠를 서비스나 판매 계약이 종료된 이후에도 계속 만날 수 있도록 설계합니다",
+    description:
+      "Silock에서 구매한 콘텐츠를 서비스나 판매 계약이 종료된 이후에도 계속 만날 수 있도록 설계합니다",
     descriptionSegments: [
-      ["Silock에서 구매한 콘텐츠를", "서비스나 판매 계약이 종료된 이후에도", "계속 만날 수 있도록 설계합니다"],
+      [
+        "Silock에서 구매한 콘텐츠를",
+        "서비스나 판매 계약이 종료된 이후에도",
+        "계속 만날 수 있도록 설계합니다",
+      ],
     ],
   },
   {
     number: "02",
     title: "안심 구매",
-    description: "구매한 작품이 사라질 걱정을 덜고 콘텐츠를 안심하고 소장할 수 있습니다",
+    description:
+      "구매한 작품이 사라질 걱정을 덜고 콘텐츠를 안심하고 소장할 수 있습니다",
     descriptionSegments: [
-      ["구매한 작품이 사라질 걱정을 덜고", "콘텐츠를 안심하고 소장할 수 있습니다"],
+      [
+        "구매한 작품이 사라질 걱정을 덜고",
+        "콘텐츠를 안심하고 소장할 수 있습니다",
+      ],
     ],
   },
   {
     number: "03",
     title: "자유로운 판매",
-    description: "창작자는 누구나 작품을 직접 등록하고 자신의 콘텐츠를 원하는 독자에게 자유롭게 판매할 수 있습니다",
+    description:
+      "창작자는 누구나 작품을 직접 등록하고 자신의 콘텐츠를 원하는 독자에게 자유롭게 판매할 수 있습니다",
     descriptionSegments: [
-      ["창작자는 누구나 작품을 직접 등록하고", "자신의 콘텐츠를 원하는 독자에게", "자유롭게 판매할 수 있습니다"],
+      [
+        "창작자는 누구나 작품을 직접 등록하고",
+        "자신의 콘텐츠를 원하는 독자에게",
+        "자유롭게 판매할 수 있습니다",
+      ],
     ],
   },
 ];
@@ -2538,11 +3194,15 @@ const BRAND_VALUES = [
 const FAQ_ITEMS = [
   {
     question: "Silock 서비스가 종료된 뒤에도 볼 수 있나요?",
-    answer: "네\n그 점이 Silock의 핵심 목표입니다 구체적인 저장 방식과 접근 구조 등은 여러분의 의견을 바탕으로 검증하고 있습니다",
+    answer:
+      "네\n그 점이 Silock의 핵심 목표입니다 구체적인 저장 방식과 접근 구조 등은 여러분의 의견을 바탕으로 검증하고 있습니다",
     answerSegments: [
       ["네"],
       ["그 점이 Silock의 핵심 목표입니다"],
-      ["구체적인 저장 방식과 접근 구조 등은", "여러분의 의견을 바탕으로 검증하고 있습니다"],
+      [
+        "구체적인 저장 방식과 접근 구조 등은",
+        "여러분의 의견을 바탕으로 검증하고 있습니다",
+      ],
     ],
     // "네"는 뒷 문장과 폭에 따라 같은 줄에 붙어 보일 수 있어, 항상 단독 줄로
     // 떨어지도록 첫 문장 뒤에만 강제 줄바꿈을 넣는다(다른 문항의 문장 사이
@@ -2551,17 +3211,22 @@ const FAQ_ITEMS = [
   },
   {
     question: "다른 플랫폼에서 구매한 콘텐츠도 가져올 수 있나요?",
-    answer: "아니요 지속 소장은 Silock 내의 콘텐츠에만 적용됩니다 다른 플랫폼의 구매 내역이나 콘텐츠를 가져와 보관하는 서비스는 아닙니다",
+    answer:
+      "아니요 지속 소장은 Silock 내의 콘텐츠에만 적용됩니다 다른 플랫폼의 구매 내역이나 콘텐츠를 가져와 보관하는 서비스는 아닙니다",
     answerSegments: [
       ["아니오"],
       ["지속 소장은 Silock에서 구매하신", "디지털 콘텐츠에만 적용됩니다"],
-      ["다른 플랫폼의 구매 내역이나 콘텐츠를", "가져와 보관하는 서비스는 아닙니다"],
+      [
+        "다른 플랫폼의 구매 내역이나 콘텐츠를",
+        "가져와 보관하는 서비스는 아닙니다",
+      ],
     ],
     breakAfter: [0],
   },
   {
     question: "어떤 콘텐츠를 지원하나요?",
-    answer: "웹툰, 웹소설, 전자책 등 글·그림으로 구성된 디지털 창작물을 지원할 예정입니다",
+    answer:
+      "웹툰, 웹소설, 전자책 등 글·그림으로 구성된 디지털 창작물을 지원할 예정입니다",
     answerSegments: [
       ["웹툰, 웹소설, 전자책 등", "글·그림으로 구성된"],
       ["다양한 디지털 창작물을 지원할 예정입니다"],
@@ -2569,9 +3234,13 @@ const FAQ_ITEMS = [
   },
   {
     question: "지금은 어느 단계인가요?",
-    answer: "고객의 실제 불편함과 서비스에 대한 수요를 확인하기 위한 초기 시장 검증 단계입니다 설문 결과는 Silock의 우선순위 결정에 중요한 참고 자료로 활용됩니다",
+    answer:
+      "고객의 실제 불편함과 서비스에 대한 수요를 확인하기 위한 초기 시장 검증 단계입니다 설문 결과는 Silock의 우선순위 결정에 중요한 참고 자료로 활용됩니다",
     answerSegments: [
-      ["고객의 실제 불편함과 서비스에 대한 수요를", "확인하기 위한 초기 시장 검증 단계입니다"],
+      [
+        "고객의 실제 불편함과 서비스에 대한 수요를",
+        "확인하기 위한 초기 시장 검증 단계입니다",
+      ],
       ["설문 결과는 Silock의 우선순위 결정에", "중요한 참고 자료로 활용됩니다"],
     ],
   },
@@ -2594,11 +3263,13 @@ function MeaningfulCopy({ sentences, breakAfter = [] }) {
           </Fragment>
         ))}
       </span>
-      {sentenceIndex < sentences.length - 1
-        ? breakAfter.includes(sentenceIndex)
-          ? <br />
-          : " "
-        : null}
+      {sentenceIndex < sentences.length - 1 ? (
+        breakAfter.includes(sentenceIndex) ? (
+          <br />
+        ) : (
+          " "
+        )
+      ) : null}
     </Fragment>
   ));
 }
@@ -2622,7 +3293,7 @@ function BrandConceptMotion() {
     }
     const io = new IntersectionObserver(
       ([entry]) => el.classList.toggle("in-view", entry.isIntersecting),
-      { rootMargin: "200px 0px" } // 완전히 도달하기 직전에 미리 켜 둔다
+      { rootMargin: "200px 0px" }, // 완전히 도달하기 직전에 미리 켜 둔다
     );
     io.observe(el);
     return () => io.disconnect();
@@ -2632,6 +3303,7 @@ function BrandConceptMotion() {
     <div
       ref={motionRef}
       className="silock-concept-motion"
+      role="img"
       aria-label="소장을 원하는 독자와 창작자가 Silock 플랫폼의 연결 입구를 통과해 각자의 서재로 이어지는 지속 소장 과정"
     >
       <div className="silock-motion-stage" aria-hidden="true">
@@ -2684,10 +3356,17 @@ function BrandConceptMotion() {
         <div className="silock-library-destination">
           <span className="silock-library-label">MY LIBRARY</span>
           <span className="silock-library-shelf silock-library-shelf-top">
-            <i /><i /><i /><i />
+            <i />
+            <i />
+            <i />
+            <i />
           </span>
           <span className="silock-library-shelf silock-library-shelf-bottom">
-            <i /><i /><i /><i /><i />
+            <i />
+            <i />
+            <i />
+            <i />
+            <i />
           </span>
         </div>
 
@@ -2710,13 +3389,19 @@ function BrandConceptMotion() {
 
 function ArchiveTransitionSection({ sectionRef }) {
   return (
-    <section ref={sectionRef} id="archive-transition" className="silock-archive-transition">
+    <section
+      ref={sectionRef}
+      id="archive-transition"
+      className="silock-archive-transition"
+    >
       <div className="silock-transition-panel">
         <div className="silock-transition-record" aria-hidden="true">
           <span>ARCHIVE TRANSITION</span>
           <span>RECORD 001</span>
         </div>
-        <p className="silock-transition-eyebrow">FROM PHYSICAL ARCHIVE TO DIGITAL LIBRARY</p>
+        <p className="silock-transition-eyebrow">
+          FROM PHYSICAL ARCHIVE TO DIGITAL LIBRARY
+        </p>
         <h2>
           대대로 내려온 보존의 가치를
           <br />
@@ -2724,12 +3409,16 @@ function ArchiveTransitionSection({ sectionRef }) {
         </h2>
         <p className="silock-transition-description">
           <span className="silock-copy-segment">오프라인의 소장 경험을</span>{" "}
-          <span className="silock-copy-segment">Silock의 디지털 서재로 옮깁니다</span>
+          <span className="silock-copy-segment">
+            Silock의 디지털 서재로 옮깁니다
+          </span>
         </p>
         <div className="silock-transition-flow" aria-hidden="true">
           <span>오프라인 소장</span>
           <i />
-          <span className="silock-transition-symbol"><KeyholeSquareIcon size={48} filled /></span>
+          <span className="silock-transition-symbol">
+            <KeyholeSquareIcon size={48} filled />
+          </span>
           <i />
           <span>디지털 서재</span>
         </div>
@@ -2748,9 +3437,22 @@ function SectionRecord({ number, label }) {
   );
 }
 
+function AdaptiveCopy({ first, second }) {
+  return (
+    <>
+      <span className="silock-copy-segment">{first}</span>{" "}
+      <span className="silock-copy-segment">{second}</span>
+    </>
+  );
+}
+
 function BrandStorySection() {
   return (
-    <section id="brand-story" className="silock-story-section silock-brand-section" style={{ ...storyStyles.section, ...storyStyles.brandSection }}>
+    <section
+      id="brand-story"
+      className="silock-story-section silock-brand-section"
+      style={{ ...storyStyles.section, ...storyStyles.brandSection }}
+    >
       <SectionRecord number="01" label="BRAND ARCHIVE" />
       <div style={storyStyles.inner}>
         <p style={storyStyles.eyebrow}>WHY SILOCK</p>
@@ -2763,24 +3465,31 @@ function BrandStorySection() {
           </span>
         </h2>
         <p style={storyStyles.lead}>
-          <span className="silock-copy-segment">사람을 닮은 심볼은</span>{" "}
-          <span className="silock-copy-segment">독자와 창작자를,</span>
-          <br />
-          <span className="silock-copy-segment">네모난 프레임은</span>{" "}
-          <span className="silock-copy-segment">개인의 서재를 뜻합니다</span>
+          <AdaptiveCopy
+            first="사람을 닮은 심볼은 독자와 창작자를,"
+            second="네모난 프레임은 개인의 서재를 뜻합니다"
+          />
         </p>
 
         <BrandConceptMotion />
 
         <div className="silock-value-grid">
           {BRAND_VALUES.map((value) => (
-            <article key={value.number} className="silock-record-card" style={storyStyles.valueCard}>
-              <span style={storyStyles.cardNumber}>{value.number}</span>
-              <h3 style={storyStyles.cardTitle}>{value.title}</h3>
-              <p style={storyStyles.cardDescription} aria-label={value.description}>
-                <MeaningfulCopy sentences={value.descriptionSegments} />
-              </p>
-            </article>
+            <Card key={value.number} asChild unstyled>
+              <article
+                className="silock-record-card"
+                style={storyStyles.valueCard}
+              >
+                <span style={storyStyles.cardNumber}>{value.number}</span>
+                <h3 style={storyStyles.cardTitle}>{value.title}</h3>
+                <p
+                  style={storyStyles.cardDescription}
+                  aria-label={value.description}
+                >
+                  <MeaningfulCopy sentences={value.descriptionSegments} />
+                </p>
+              </article>
+            </Card>
           ))}
         </div>
       </div>
@@ -2790,29 +3499,46 @@ function BrandStorySection() {
 
 function FAQSection() {
   return (
-    <section id="qna" className="silock-story-section silock-faq-section" style={{ ...storyStyles.section, ...storyStyles.faqSection }}>
+    <section
+      id="qna"
+      className="silock-story-section silock-faq-section"
+      style={{ ...storyStyles.section, ...storyStyles.faqSection }}
+    >
       <SectionRecord number="02" label="OPEN RECORDS" />
       <div className="silock-faq-layout" style={storyStyles.inner}>
         <div style={storyStyles.faqIntro}>
           <p style={storyStyles.eyebrow}>Q&amp;A</p>
-          <h2 style={storyStyles.sectionTitle}>지속 소장에 대해<br />궁금한 점</h2>
+          <h2 style={storyStyles.sectionTitle}>
+            <AdaptiveCopy first="지속 소장에 대해" second="궁금한 점" />
+          </h2>
           <p style={storyStyles.sectionDescription}>
-            <span className="silock-copy-segment">지금 Silock이 만들고 있는 가치와</span>{" "}
-            <span className="silock-copy-segment">검증 단계를 솔직하게 답합니다</span>
+            <AdaptiveCopy
+              first="지금 Silock이 만들고 있는 가치와"
+              second="검증 단계를 솔직하게 답합니다"
+            />
           </p>
         </div>
         <div style={storyStyles.faqList}>
           {FAQ_ITEMS.map((item, index) => (
-            <details key={item.question} className="silock-faq-item" open={index === 0}>
+            <details
+              key={item.question}
+              className="silock-faq-item"
+              open={index === 0}
+            >
               <summary>
                 <span className="silock-faq-question">
                   <small>{String(index + 1).padStart(2, "0")}</small>
                   <span>{item.question}</span>
                 </span>
-                <span className="silock-faq-plus" aria-hidden="true">+</span>
+                <span className="silock-faq-plus" aria-hidden="true">
+                  +
+                </span>
               </summary>
               <p aria-label={item.answer}>
-                <MeaningfulCopy sentences={item.answerSegments} breakAfter={item.breakAfter} />
+                <MeaningfulCopy
+                  sentences={item.answerSegments}
+                  breakAfter={item.breakAfter}
+                />
               </p>
             </details>
           ))}
@@ -2824,14 +3550,23 @@ function FAQSection() {
 
 function FinalSurveySection({ onSurveyOpen }) {
   return (
-    <section id="survey" className="silock-final-survey-section" style={{ ...storyStyles.section, ...storyStyles.surveySection }}>
+    <section
+      id="survey"
+      className="silock-final-survey-section"
+      style={{ ...storyStyles.section, ...storyStyles.surveySection }}
+    >
       <SectionRecord number="03" label="YOUR RECORD" />
-      <div className="silock-survey-inner" style={{ ...storyStyles.inner, ...storyStyles.surveyInner }}>
+      <div
+        className="silock-survey-inner"
+        style={{ ...storyStyles.inner, ...storyStyles.surveyInner }}
+      >
         <div className="silock-survey-message">
           <div className="silock-survey-symbol" aria-hidden="true">
             <KeyholeSquareIcon size={96} filled />
           </div>
-          <p style={{ ...storyStyles.eyebrow, color: COLOR.orange }}>YOUR VOICES UNLOCK SILOCK</p>
+          <p style={{ ...storyStyles.eyebrow, color: COLOR.orange }}>
+            YOUR VOICES UNLOCK SILOCK
+          </p>
           <h2 style={{ ...storyStyles.displayTitle, color: COLOR.white }}>
             당신의 경험이
             <br />
@@ -2839,28 +3574,59 @@ function FinalSurveySection({ onSurveyOpen }) {
           </h2>
           <p style={{ ...storyStyles.lead, color: "rgba(255,255,255,0.7)" }}>
             <span className="silock-copy-segment">콘텐츠를 잃었거나,</span>{" "}
-            <span className="silock-copy-segment">잃을까 걱정했던 경험을 들려주세요</span>
+            <span className="silock-copy-segment">
+              잃을까 걱정했던 경험을 들려주세요
+            </span>
             <br />
-            <span className="silock-copy-segment">Silock의 지속 소장 경험을</span>{" "}
+            <span className="silock-copy-segment">
+              Silock의 지속 소장 경험을
+            </span>{" "}
             <span className="silock-copy-segment">설계하는 데 사용됩니다</span>
           </p>
         </div>
         <div className="silock-survey-action">
-          <button type="button" className="silock-final-cta" onClick={onSurveyOpen}>
+          <Button
+            variant="unstyled"
+            type="button"
+            className="silock-final-cta"
+            onClick={onSurveyOpen}
+          >
             참여하기
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M5 12h14M14 7l5 5-5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              aria-hidden="true"
+            >
+              <path
+                d="M5 12h14M14 7l5 5-5 5"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
             </svg>
-          </button>
-          <p style={storyStyles.surveyNote}>설문 참여 후 오픈 알림을 신청할 수 있습니다</p>
+          </Button>
+          <p style={storyStyles.surveyNote}>
+            설문 참여 후 오픈 알림을 신청할 수 있습니다
+          </p>
         </div>
       </div>
       <footer className="silock-final-footer" style={storyStyles.footer}>
         <span className="silock-final-footer-brand">SILOCK</span>
         <span className="silock-final-footer-note">
-          <span className="silock-copy-segment">온라인도 오프라인처럼 안심하고 소장하세요</span>
+          <span className="silock-copy-segment">
+            온라인도 오프라인처럼 안심하고 소장하세요
+          </span>
         </span>
-        <a href="mailto:silockload@gmail.com" className="silock-final-footer-email" style={storyStyles.footerEmail}>silockload@gmail.com</a>
+        <a
+          href="mailto:silockload@gmail.com"
+          className="silock-final-footer-email"
+          style={storyStyles.footerEmail}
+        >
+          silockload@gmail.com
+        </a>
       </footer>
     </section>
   );
@@ -2879,26 +3645,120 @@ function StorySections({ sectionRef, onSurveyOpen }) {
 
 const storyStyles = {
   page: { position: "relative", zIndex: 2, background: COLOR.white },
-  section: { position: "relative", padding: "clamp(88px, 11vw, 160px) 24px", overflow: "hidden" },
+  section: {
+    position: "relative",
+    padding: "clamp(88px, 11vw, 160px) 24px",
+    overflow: "hidden",
+  },
   brandSection: { background: COLOR.white },
   faqSection: { background: COLOR.lightGray },
-  surveySection: { minHeight: "82vh", background: COLOR.black, display: "flex", flexDirection: "column", justifyContent: "space-between", paddingBottom: 0 },
+  surveySection: {
+    minHeight: "82vh",
+    background: COLOR.black,
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "space-between",
+    paddingBottom: 0,
+  },
   inner: { width: "min(1160px, 100%)", margin: "0 auto" },
-  eyebrow: { margin: "0 0 18px", color: COLOR.orange, fontSize: "clamp(15px, 1.4vw, 20px)", fontWeight: 800, lineHeight: 1.3, letterSpacing: "0.14em" },
-  displayTitle: { margin: 0, color: COLOR.black, fontSize: "clamp(42px, 6.5vw, 84px)", fontWeight: 800, lineHeight: 1.06, letterSpacing: "-0.055em" },
+  eyebrow: {
+    margin: "0 0 18px",
+    color: COLOR.orange,
+    fontSize: "clamp(15px, 1.4vw, 20px)",
+    fontWeight: 800,
+    lineHeight: 1.3,
+    letterSpacing: "0.14em",
+  },
+  displayTitle: {
+    margin: 0,
+    color: COLOR.black,
+    fontSize: "clamp(42px, 6.5vw, 84px)",
+    fontWeight: 800,
+    lineHeight: 1.06,
+    letterSpacing: "-0.055em",
+  },
   orangeText: { color: COLOR.orange },
-  lead: { margin: "28px 0 0", color: "#5f5f5f", fontSize: "clamp(16px, 1.7vw, 21px)", lineHeight: 1.75, letterSpacing: "-0.02em" },
-  valueCard: { minHeight: 250, padding: "30px 28px", border: `1px solid ${COLOR.neutralGray}`, borderRadius: 14, background: COLOR.white, display: "flex", flexDirection: "column" },
-  cardNumber: { color: COLOR.orange, fontSize: "clamp(20px, 1.8vw, 26px)", fontWeight: 800, lineHeight: 1, letterSpacing: "0.12em" },
-  cardTitle: { minHeight: "2.6em", margin: "28px 0 12px", color: COLOR.black, fontSize: "clamp(19px, 2vw, 25px)", lineHeight: 1.3, letterSpacing: "-0.035em", display: "flex", alignItems: "flex-end" },
-  cardDescription: { margin: 0, color: "#686868", fontSize: 15, lineHeight: 1.7, letterSpacing: "-0.018em" },
+  lead: {
+    margin: "28px 0 0",
+    color: "#5f5f5f",
+    fontSize: "clamp(16px, 1.7vw, 21px)",
+    lineHeight: 1.75,
+    letterSpacing: "-0.02em",
+  },
+  valueCard: {
+    minHeight: 250,
+    padding: "30px 28px",
+    border: `1px solid ${COLOR.neutralGray}`,
+    borderRadius: 14,
+    background: COLOR.white,
+    display: "flex",
+    flexDirection: "column",
+  },
+  cardNumber: {
+    color: COLOR.orange,
+    fontSize: "clamp(20px, 1.8vw, 26px)",
+    fontWeight: 800,
+    lineHeight: 1,
+    letterSpacing: "0.12em",
+  },
+  cardTitle: {
+    minHeight: "2.6em",
+    margin: "28px 0 12px",
+    color: COLOR.black,
+    fontSize: "clamp(19px, 2vw, 25px)",
+    lineHeight: 1.3,
+    letterSpacing: "-0.035em",
+    display: "flex",
+    alignItems: "flex-end",
+  },
+  cardDescription: {
+    margin: 0,
+    color: "#686868",
+    fontSize: 15,
+    lineHeight: 1.7,
+    letterSpacing: "-0.018em",
+  },
   faqIntro: { position: "sticky", top: 96, alignSelf: "start" },
-  sectionTitle: { margin: 0, color: COLOR.black, fontSize: "clamp(36px, 4.8vw, 62px)", fontWeight: 800, lineHeight: 1.12, letterSpacing: "-0.05em" },
-  sectionDescription: { maxWidth: 380, margin: "22px 0 0", color: "#686868", fontSize: 16, lineHeight: 1.7 },
+  sectionTitle: {
+    margin: 0,
+    color: COLOR.black,
+    fontSize: "clamp(36px, 4.8vw, 62px)",
+    fontWeight: 800,
+    lineHeight: 1.12,
+    letterSpacing: "-0.05em",
+  },
+  sectionDescription: {
+    margin: "22px 0 0",
+    color: "#686868",
+    fontSize: 16,
+    lineHeight: 1.7,
+  },
   faqList: { borderTop: `1px solid ${COLOR.neutralGray}` },
-  surveyInner: { textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center" },
-  surveyNote: { margin: "clamp(22px, 2.4vw, 34px) 0 0", color: "rgba(255,255,255,0.58)", fontSize: "clamp(14px, 1.25vw, 17px)", lineHeight: 1.5 },
-  footer: { width: "min(1160px, calc(100% - 48px))", margin: "80px auto 0", padding: "24px 0", borderTop: "1px solid rgba(255,255,255,0.14)", color: "rgba(255,255,255,0.48)", display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: "8px 16px", fontSize: "clamp(10px, 2.6vw, 12px)" },
+  surveyInner: {
+    textAlign: "center",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+  },
+  surveyNote: {
+    margin: "clamp(22px, 2.4vw, 34px) 0 0",
+    color: "rgba(255,255,255,0.58)",
+    fontSize: "clamp(14px, 1.25vw, 17px)",
+    lineHeight: 1.5,
+  },
+  footer: {
+    width: "min(1160px, calc(100% - 48px))",
+    margin: "80px auto 0",
+    padding: "24px 0",
+    borderTop: "1px solid rgba(255,255,255,0.14)",
+    color: "rgba(255,255,255,0.48)",
+    display: "flex",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: "8px 16px",
+    fontSize: "clamp(10px, 2.6vw, 12px)",
+  },
   footerEmail: { color: "inherit", textDecoration: "none" },
 };
 
@@ -2932,7 +3792,8 @@ function AlreadyParticipatedModal({ open, onClose }) {
     >
       <ModalBackdrop />
       <div style={participatedStyles.card}>
-        <button
+        <Button
+          variant="unstyled"
           type="button"
           onClick={onClose}
           aria-label="닫기"
@@ -2940,19 +3801,37 @@ function AlreadyParticipatedModal({ open, onClose }) {
           style={participatedStyles.closeBtn}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-            <path d="M5 5l14 14M19 5L5 19" stroke={COLOR.white} strokeWidth="1.8" strokeLinecap="round" />
+            <path
+              d="M5 5l14 14M19 5L5 19"
+              stroke={COLOR.white}
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            />
           </svg>
-        </button>
-        <img src={entranceLogoImg} alt="Silock" style={participatedStyles.logo} />
-        <h2 id="participated-title" style={participatedStyles.title}>이미 참여하셨습니다</h2>
+        </Button>
+        <img
+          src={entranceLogoImg}
+          alt="Silock"
+          style={participatedStyles.logo}
+        />
+        <h2 id="participated-title" style={participatedStyles.title}>
+          이미 참여하셨습니다
+        </h2>
         <p style={participatedStyles.description}>
           소중한 의견을 보내주셔서 감사합니다
           <br />
           Silock의 시작 소식을 기다려주세요
         </p>
-        <button type="button" onClick={onClose} className="silock-modal-btn" style={participatedStyles.homeButton} autoFocus>
+        <Button
+          variant="unstyled"
+          type="button"
+          onClick={onClose}
+          className="silock-modal-btn"
+          style={participatedStyles.homeButton}
+          autoFocus
+        >
           메인으로 돌아가기
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -2988,9 +3867,24 @@ const participatedStyles = {
     borderRadius: 10,
     background: "rgba(255,255,255,0.08)",
   },
-  logo: { width: "clamp(120px, 30vw, 180px)", height: "auto", objectFit: "contain", marginBottom: 20 },
-  title: { margin: 0, fontSize: "clamp(22px, 5vw, 30px)", lineHeight: 1.25, letterSpacing: "-0.03em" },
-  description: { margin: "14px 0 0", fontSize: "clamp(13px, 3.4vw, 16px)", lineHeight: 1.7, color: "rgba(255,255,255,0.72)" },
+  logo: {
+    width: "clamp(120px, 30vw, 180px)",
+    height: "auto",
+    objectFit: "contain",
+    marginBottom: 20,
+  },
+  title: {
+    margin: 0,
+    fontSize: "clamp(22px, 5vw, 30px)",
+    lineHeight: 1.25,
+    letterSpacing: "-0.03em",
+  },
+  description: {
+    margin: "14px 0 0",
+    fontSize: "clamp(13px, 3.4vw, 16px)",
+    lineHeight: 1.7,
+    color: "rgba(255,255,255,0.72)",
+  },
   homeButton: {
     marginTop: "clamp(24px, 5vw, 32px)",
     padding: "13px 30px",
@@ -3010,14 +3904,30 @@ const participatedStyles = {
 export default function SilockLibraryDemo() {
   const [activated, setActivated] = useState(false);
   const [surveyOpen, setSurveyOpen] = useState(false);
-  const [surveyCompleted, setSurveyCompleted] = useState(readSurveyCompleted);
+  const persistedSurveyCompleted = useSyncExternalStore(
+    subscribeSurveyCompleted,
+    readSurveyCompleted,
+    serverFalse,
+  );
+  const [sessionSurveyCompleted, setSessionSurveyCompleted] = useState(false);
+  const surveyCompleted = persistedSurveyCompleted || sessionSurveyCompleted;
   // 이미 참여한 사용자에게 보여주는 안내 모달의 표시 여부. surveyCompleted(영구
   // 저장되는 참여 기록)와 분리해, 랜딩 페이지 자체는 항상 정상적으로 노출한다.
   const [showParticipatedNotice, setShowParticipatedNotice] = useState(false);
   // 저사양 기기 여부는 기기 특성이라 세션 내내 바뀌지 않으므로 최초 1회만 계산한다.
-  const [lowPower] = useState(detectLowPower);
+  const lowPower = useSyncExternalStore(
+    subscribeLowPower,
+    detectLowPower,
+    serverFalse,
+  );
   const ctaRef = useRef(null);
   const storyRef = useRef(null);
+
+  useEffect(() => {
+    initAnalytics();
+    if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+    window.scrollTo(0, 0);
+  }, []);
 
   useEffect(() => {
     // 입구 활성화 전 스크롤 잠금 + 설문/안내 모달 열린 동안 배경 스크롤 잠금
@@ -3034,16 +3944,19 @@ export default function SilockLibraryDemo() {
     setTimeout(() => window.scrollBy({ top: 80, behavior: "smooth" }), 400);
   }, []);
 
-  const handleSurveyOpen = useCallback((event) => {
-    if (event?.currentTarget) ctaRef.current = event.currentTarget;
-    // 이미 참여한 사용자는 설문 폼 대신 안내 모달을 띄운다(중복 응답 방지).
-    if (surveyCompleted) {
-      setShowParticipatedNotice(true);
-      return;
-    }
-    trackEvent("survey_open");
-    setSurveyOpen(true);
-  }, [surveyCompleted]);
+  const handleSurveyOpen = useCallback(
+    (event) => {
+      if (event?.currentTarget) ctaRef.current = event.currentTarget;
+      // 이미 참여한 사용자는 설문 폼 대신 안내 모달을 띄운다(중복 응답 방지).
+      if (surveyCompleted) {
+        setShowParticipatedNotice(true);
+        return;
+      }
+      trackEvent("survey_open");
+      setSurveyOpen(true);
+    },
+    [surveyCompleted],
+  );
   const handleSurveyClose = useCallback(() => setSurveyOpen(false), []);
   const handleParticipatedNoticeClose = useCallback(() => {
     setShowParticipatedNotice(false);
@@ -3051,21 +3964,28 @@ export default function SilockLibraryDemo() {
     ctaRef.current?.focus?.();
   }, []);
   const handleExplore = useCallback(() => {
-    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    storyRef.current?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    storyRef.current?.scrollIntoView({
+      behavior: reduceMotion ? "auto" : "smooth",
+      block: "start",
+    });
   }, []);
   const handleSurveyComplete = useCallback(() => {
     saveSurveyCompleted();
     trackEvent("survey_complete");
     setSurveyOpen(false);
-    setSurveyCompleted(true);
+    setSessionSurveyCompleted(true);
     // 제출 직후에는 감사 안내를 한 번 보여준다(닫으면 랜딩으로 돌아간다).
     setShowParticipatedNotice(true);
   }, []);
 
   return (
     <div
-      className={lowPower ? "silock-app silock-lite" : "silock-app"}
+      className={
+        lowPower ? "silock-app silock-lite w-full" : "silock-app w-full"
+      }
       style={{
         fontFamily: "'Noto Sans KR', -apple-system, sans-serif",
         wordBreak: "keep-all",
@@ -3248,6 +4168,7 @@ export default function SilockLibraryDemo() {
         }
         .silock-section-record i { height: 1px; background: currentColor; opacity: 0.32; }
         .silock-section-record span:first-child { color: ${COLOR.orange}; }
+        #qna .silock-section-record { color: #666666; }
         .silock-final-survey-section .silock-section-record { color: rgba(255,255,255,0.48); }
         .silock-brand-section::before {
           content: "";
